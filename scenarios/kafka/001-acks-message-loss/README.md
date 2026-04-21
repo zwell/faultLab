@@ -11,12 +11,6 @@
 
 - **Docker**：>= 24.0（`docker compose` 命令）
 - **可用内存**：至少 **2 GB**（本场景资源等级：🔴 重量）
-- **verify 功能**：需要配置 LLM API Key，见根目录 `.env.example`
-
-```bash
-cp .env.example .env
-# 编辑 .env，填入你的 API Key
-```
 
 ---
 
