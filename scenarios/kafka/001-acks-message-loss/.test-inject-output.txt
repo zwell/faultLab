@@ -1,0 +1,8 @@
+=== FaultLab Inject Summary ===
+scenario             : kafka-001
+produced_count       : 200
+recovered_count      : 0
+acks_mode            : 1
+affected_component   : producer durability path
+inject_param         : acks=1 + broker SIGKILL before replica sync
+================================
