@@ -48,6 +48,47 @@ require_docker() {
   fi
 }
 
+load_env_file_if_exists() {
+  ENV_FILE="$FAULTLAB_ROOT/.env"
+  if [ -f "$ENV_FILE" ]; then
+    while IFS= read -r line || [ -n "$line" ]; do
+      case "$line" in
+        ''|\#*) continue ;;
+      esac
+      key=$(printf "%s" "$line" | awk -F= '{print $1}')
+      val=$(printf "%s" "$line" | awk -F= '{
+        $1=""
+        sub(/^=/,"")
+        print
+      }')
+      key=$(printf "%s" "$key" | awk '{gsub(/\r/,""); print}')
+      val=$(printf "%s" "$val" | awk '{gsub(/\r/,""); print}')
+      [ -n "$key" ] || continue
+      eval "current=\${$key:-}"
+      if [ "${current:-}" = "" ]; then
+        eval "$key=\$val"
+        eval "export $key"
+      fi
+    done < "$ENV_FILE"
+  fi
+}
+
+json_escape() {
+  awk '
+    BEGIN { ORS=""; first=1 }
+    {
+      line=$0
+      gsub(/\\/,"\\\\",line)
+      gsub(/"/,"\\\"",line)
+      gsub(/\r/,"\\r",line)
+      gsub(/\t/,"\\t",line)
+      if (!first) printf "\\n"
+      printf "%s", line
+      first=0
+    }
+  '
+}
+
 compose_file() {
   COMPOSE_FILE="$SCENARIO_DIR/docker-compose.yml"
   if [ ! -f "$COMPOSE_FILE" ]; then
@@ -204,17 +245,133 @@ cmd_inject() {
 
 cmd_verify() {
   resolve_scenario_dir
+  load_env_file_if_exists
   SOLUTION_FILE="$SCENARIO_DIR/SOLUTION.md"
   if [ ! -f "$SOLUTION_FILE" ]; then
     echo "ERROR: SOLUTION.md not found in $SCENARIO_DIR"
     exit 1
   fi
 
+  provider=$(printf "%s" "${VERIFY_PROVIDER:-qwen}" | awk '{gsub(/\r/,""); gsub(/^[ \t]+|[ \t]+$/,""); print}')
+  model=$(printf "%s" "${VERIFY_MODEL:-qwen-plus}" | awk '{gsub(/\r/,""); gsub(/^[ \t]+|[ \t]+$/,""); print}')
+  case "$provider" in
+    qwen)
+      api_url="${VERIFY_API_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions}"
+      api_key="${VERIFY_API_KEY:-${DASHSCOPE_API_KEY:-}}"
+      ;;
+    openai)
+      api_url="${VERIFY_API_URL:-https://api.openai.com/v1/chat/completions}"
+      api_key="${VERIFY_API_KEY:-${OPENAI_API_KEY:-}}"
+      ;;
+    *)
+      api_url="${VERIFY_API_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions}"
+      api_key="${VERIFY_API_KEY:-${DASHSCOPE_API_KEY:-}}"
+      provider="qwen"
+      ;;
+  esac
+
+  if [ "$api_url" = "" ]; then
+    echo "ERROR: verify API url is empty."
+    echo "Set VERIFY_API_URL or use VERIFY_PROVIDER=qwen/openai."
+    exit 1
+  fi
+
+  if [ "$api_key" = "" ]; then
+    echo "ERROR: verify API key is empty."
+    echo "For qwen, set DASHSCOPE_API_KEY (or VERIFY_API_KEY)."
+    echo "For openai, set OPENAI_API_KEY (or VERIFY_API_KEY)."
+    exit 1
+  fi
+
+  if [ "$model" = "" ]; then
+    echo "ERROR: verify model is empty."
+    echo "Set VERIFY_MODEL, for example: qwen-plus / qwen-turbo."
+    exit 1
+  fi
+
   echo "[faultlab] scenario: $FAULTLAB_SCENARIO"
-  echo "[faultlab] verify is handled by outer module."
-  echo "[faultlab] solution reference: $SOLUTION_FILE"
+  echo "[faultlab] verify provider: $provider"
+  echo "[faultlab] verify model: $model"
   echo
-  echo "Please describe your root cause analysis and fix plan to the verify module."
+  echo "Please input your root cause analysis and fix plan."
+  echo "Finish input with Ctrl+D (Linux/macOS) or Ctrl+Z then Enter (PowerShell)."
+  user_text=$(awk 'BEGIN{first=1} {if(!first) printf "\n"; printf "%s", $0; first=0}')
+  if [ "${user_text:-}" = "" ]; then
+    echo "ERROR: empty input."
+    exit 1
+  fi
+
+  solution_text=$(awk 'BEGIN{first=1} {if(!first) printf "\n"; printf "%s", $0; first=0}' "$SOLUTION_FILE")
+  system_prompt="You are a fault diagnosis reviewer. Grade the learner response strictly against the provided solution rubric. Output concise markdown with sections: Result, Missing Evidence, Next Steps."
+  user_prompt=$(printf "SOLUTION.md:\n%s\n\nLearner analysis:\n%s" "$solution_text" "$user_text")
+
+  model_escaped=$(printf "%s" "$model" | json_escape)
+  system_escaped=$(printf "%s" "$system_prompt" | json_escape)
+  user_escaped=$(printf "%s" "$user_prompt" | json_escape)
+  verify_payload=$(printf '{"model":"%s","messages":[{"role":"system","content":"%s"},{"role":"user","content":"%s"}]}' \
+    "$model_escaped" "$system_escaped" "$user_escaped")
+  payload_file=$(mktemp)
+  printf "%s" "$verify_payload" > "$payload_file"
+
+  response_file=$(mktemp)
+  http_code=$(curl -sS -o "$response_file" -w "%{http_code}" \
+    -X POST "$api_url" \
+    -H "Authorization: Bearer $api_key" \
+    -H "Content-Type: application/json" \
+    --data-binary "@$payload_file")
+  rm -f "$payload_file"
+
+  if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+    echo "ERROR: verify request failed, http_code=$http_code"
+    echo "[debug] verify payload (first 400 chars):"
+    printf "%s\n" "$verify_payload" | awk '{print substr($0,1,400)}'
+    awk '{print}' "$response_file"
+    if awk '/model_not_found|Model not exist/ {found=1} END{exit found?0:1}' "$response_file" >/dev/null 2>&1; then
+      echo "Hint: current VERIFY_MODEL may be invalid for this provider."
+      echo "Try VERIFY_MODEL=qwen-plus (or qwen-turbo) in .env."
+    fi
+    rm -f "$response_file"
+    exit 1
+  fi
+
+  content=$(awk '
+    {
+      if (match($0,/"content":"([^"]|\\")*"/)) {
+        s=substr($0,RSTART+11,RLENGTH-12)
+        gsub(/\\"/,"\"",s)
+        gsub(/\\n/,"\n",s)
+        gsub(/\\r/,"",s)
+        gsub(/\\\\/,"\\",s)
+        print s
+        found=1
+        exit
+      }
+      if (match($0,/"text":"([^"]|\\")*"/)) {
+        s=substr($0,RSTART+8,RLENGTH-9)
+        gsub(/\\"/,"\"",s)
+        gsub(/\\n/,"\n",s)
+        gsub(/\\r/,"",s)
+        gsub(/\\\\/,"\\",s)
+        print s
+        found=1
+        exit
+      }
+    }
+    END {
+      if (!found) exit 1
+    }
+  ' "$response_file" 2>/dev/null || true)
+  rm -f "$response_file"
+
+  if [ "${content:-}" = "" ]; then
+    echo "ERROR: cannot parse LLM response content."
+    exit 1
+  fi
+
+  echo
+  echo "=== FaultLab Verify Result ==="
+  printf "%s\n" "$content"
+  echo "=============================="
 }
 
 cmd_clean() {
