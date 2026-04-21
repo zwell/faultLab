@@ -61,6 +61,74 @@ compose_project_name() {
   COMPOSE_PROJECT="faultlab-${SCENARIO_BASENAME}"
 }
 
+detect_compose_images_if_needed() {
+  # Generic image detector:
+  # Parse docker-compose image templates like ${VAR:-repo:tag}.
+  # If VAR is unset, try local default image first, then pull it.
+  unresolved=0
+  found_any=0
+
+  while IFS="$(printf '\t')" read -r var_name default_image; do
+    [ -n "${var_name:-}" ] || continue
+    [ -n "${default_image:-}" ] || continue
+    found_any=1
+
+    eval "current_value=\${$var_name:-}"
+    if [ "$current_value" != "" ]; then
+      continue
+    fi
+
+    if docker image inspect "$default_image" >/dev/null 2>&1; then
+      eval "$var_name=\$default_image"
+      eval "export $var_name"
+      echo "[faultlab] selected local image for $var_name: $default_image"
+      continue
+    fi
+
+    default_repo=$(printf "%s" "$default_image" | awk -F: '{print $1}')
+    fallback_local_image=$(
+      docker image ls --format '{{.Repository}}:{{.Tag}}' 2>/dev/null \
+        | awk -v repo="$default_repo" '$0 ~ ("^" repo ":") && $0 !~ /:<none>$/ {print; exit}'
+    )
+    if [ "${fallback_local_image:-}" != "" ]; then
+      eval "$var_name=\$fallback_local_image"
+      eval "export $var_name"
+      echo "[faultlab] selected local fallback image for $var_name: $fallback_local_image"
+      continue
+    fi
+
+    if docker pull "$default_image" >/dev/null 2>&1; then
+      eval "$var_name=\$default_image"
+      eval "export $var_name"
+      echo "[faultlab] selected pulled image for $var_name: $default_image"
+      continue
+    fi
+
+    echo "[faultlab] failed to prepare image for $var_name: $default_image"
+    unresolved=1
+  done <<EOF
+$(awk '
+  {
+    line=$0
+    while (match(line, /\$\{[A-Za-z_][A-Za-z0-9_]*:-[^}]+\}/)) {
+      token=substr(line, RSTART + 2, RLENGTH - 3)
+      split(token, pair, ":-")
+      if (length(pair[1]) > 0 && length(pair[2]) > 0) {
+        printf "%s\t%s\n", pair[1], pair[2]
+      }
+      line=substr(line, RSTART + RLENGTH)
+    }
+  }
+' "$COMPOSE_FILE" | awk '!seen[$0]++')
+EOF
+
+  if [ "$found_any" -eq 1 ] && [ "$unresolved" -ne 0 ]; then
+    echo "ERROR: one or more compose default images are unavailable."
+    echo "Set corresponding image env vars manually and retry."
+    exit 1
+  fi
+}
+
 wait_for_health() {
   # Wait for health checks when present. Containers without healthchecks are treated as running.
   timeout_sec="${WAIT_TIMEOUT_SEC:-120}"
@@ -106,6 +174,7 @@ cmd_start() {
   resolve_scenario_dir
   compose_file
   compose_project_name
+  detect_compose_images_if_needed
 
   echo "[faultlab] scenario: $FAULTLAB_SCENARIO"
   echo "[faultlab] start: docker compose up -d"

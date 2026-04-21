@@ -119,7 +119,7 @@ parameter_intervention: false          # 是否人为修改了关键中间件参
 ### 3.1 `docker-compose.yml`
 
 - 必须能被 `docker compose -f <path>/docker-compose.yml up -d` 直接拉起。
-- 镜像版本必须固定（如 `apache/kafka:3.7.0`），可通过环境变量覆盖（如 `${KAFKA_IMAGE:-apache/kafka:3.7.0}`）。
+- 镜像版本必须固定（如 `apache/kafka:x.x.x`），可通过环境变量覆盖（如 `${KAFKA_IMAGE:-apache/kafka:x.x.x}`）。
 - 健康检查命令须与镜像一致（`apache/kafka` 无 `bash`，用 `/bin/sh`）。
 - 容器名称必须带场景 ID 前缀，格式见第 2 节命名约定，避免多场景并行时冲突。
 - **Compose 变量转义**：`command` / `entrypoint` 中的容器内 shell 变量必须写成 `$$VAR`，防止被 Compose 预插值。示例：
