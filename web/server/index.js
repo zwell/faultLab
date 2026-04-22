@@ -8,6 +8,7 @@ import { findScenarioById } from "./lib/scenarioScanner.js";
 import { getOrCreatePty, registerOutputListener, resizePty } from "./lib/ptyManager.js";
 import { createScenarioRouter } from "./routes/scenarios.js";
 import { createTerminalRouter } from "./routes/terminal.js";
+import { createActionsRouter } from "./routes/actions.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -27,6 +28,7 @@ const app = express();
 app.use(express.json());
 app.use("/api", createScenarioRouter({ faultlabRoot }));
 app.use("/api", createTerminalRouter({ faultlabRoot }));
+app.use("/api", createActionsRouter({ faultlabRoot }));
 
 const server = createServer(app);
 const wss = new WebSocketServer({ noServer: true });

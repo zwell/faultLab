@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Link, useParams } from "react-router-dom";
+import ActionBar from "../components/ActionBar.jsx";
 import ContainerTabs from "../components/ContainerTabs.jsx";
 import Terminal from "../components/Terminal.jsx";
 
@@ -139,16 +140,8 @@ export default function Scenario() {
 
         <div style={{ width: `${rightRatio}%` }} className="flex h-full min-w-0 flex-col gap-3 p-3">
           <div className="rounded-lg border border-slate-800 bg-slate-900 p-3">
-            <div className="mb-2 flex items-center gap-2">
-              <button type="button" className="rounded bg-indigo-600 px-3 py-1 text-sm opacity-80">
-                Start (phase 3)
-              </button>
-              <button type="button" className="rounded bg-indigo-600 px-3 py-1 text-sm opacity-80">
-                Inject (phase 3)
-              </button>
-              <button type="button" className="rounded bg-indigo-600 px-3 py-1 text-sm opacity-80">
-                Clean (phase 3)
-              </button>
+            <div className="mb-2">
+              <ActionBar scenarioId={id} />
             </div>
             <ContainerTabs scenarioId={id} onAttach={attachContainer} />
           </div>
@@ -158,7 +151,7 @@ export default function Scenario() {
           </div>
 
           <div className="flex-[4] rounded-lg border border-slate-800 bg-slate-900 p-3 text-sm text-slate-400">
-            Verify chat placeholder (phase 3)
+            Verify 对话区（阶段四）
           </div>
         </div>
       </section>
