@@ -1,0 +1,7 @@
+=== FaultLab Inject Summary ===
+scenario             : kafka-002
+lag_before           : 300
+lag_after            : 1260
+affected_component   : consumer-group/faultlab-rebalance-group
+inject_param         : consumer join/leave churn rounds=12
+================================

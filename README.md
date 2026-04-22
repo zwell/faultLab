@@ -22,6 +22,7 @@ FaultLab 是一个面向 SRE / 后端工程师 / 中间件使用者的故障演�
 已提供示例场景：
 
 - `scenarios/kafka/001-acks-message-loss`
+- `scenarios/kafka/002-consumer-group-rebalance-storm`
 
 ---
 
@@ -107,6 +108,13 @@ faultLabV2/
   scenarios/
     kafka/
       001-acks-message-loss/
+        meta.yaml
+        docker-compose.yml
+        inject.sh
+        README.md
+        SOLUTION.md
+        test.sh
+      002-consumer-group-rebalance-storm/
         meta.yaml
         docker-compose.yml
         inject.sh

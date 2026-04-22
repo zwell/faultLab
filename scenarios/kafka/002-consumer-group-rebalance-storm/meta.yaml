@@ -1,0 +1,13 @@
+id: kafka-002
+title: Kafka 消费者组 Rebalance 风暴
+tech: kafka
+difficulty: 3
+duration_min: 30
+duration_max: 45
+resource_level: heavy
+tags:
+  - consumer-group
+  - rebalance
+  - lag
+  - churn
+parameter_intervention: false
