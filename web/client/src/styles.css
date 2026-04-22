@@ -9,3 +9,123 @@ body,
   min-height: 100%;
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 }
+
+.markdown-doc {
+  color: #dbe4f0;
+  line-height: 1.7;
+  font-size: 14px;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.markdown-doc > *:first-child {
+  margin-top: 0;
+}
+
+.markdown-doc h1,
+.markdown-doc h2,
+.markdown-doc h3,
+.markdown-doc h4 {
+  margin-top: 1.3em;
+  margin-bottom: 0.5em;
+  line-height: 1.35;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.markdown-doc h1 {
+  font-size: 1.45rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid #334155;
+}
+
+.markdown-doc h2 {
+  font-size: 1.2rem;
+}
+
+.markdown-doc h3 {
+  font-size: 1.05rem;
+}
+
+.markdown-doc p,
+.markdown-doc ul,
+.markdown-doc ol,
+.markdown-doc blockquote,
+.markdown-doc pre,
+.markdown-doc table {
+  margin: 0.85em 0;
+}
+
+.markdown-doc p:has(+ ul),
+.markdown-doc p:has(+ ol) {
+  margin-bottom: 0.2em;
+}
+
+.markdown-doc ul,
+.markdown-doc ol {
+  margin-top: 0.25em;
+}
+
+.markdown-doc ul,
+.markdown-doc ol {
+  padding-left: 1.3rem;
+}
+
+.markdown-doc li + li {
+  margin-top: 0.3rem;
+}
+
+.markdown-doc a {
+  color: #93c5fd;
+  text-decoration: none;
+}
+
+.markdown-doc a:hover {
+  text-decoration: underline;
+}
+
+.markdown-doc blockquote {
+  margin-left: 0;
+  padding: 0.6rem 0.9rem;
+  border-left: 3px solid #6366f1;
+  background: rgba(30, 41, 59, 0.55);
+  color: #cbd5e1;
+}
+
+.markdown-doc .inline-code {
+  padding: 0.1rem 0.35rem;
+  border: 1px solid #475569;
+  border-radius: 0.35rem;
+  background: #0f172a;
+  color: #f8fafc;
+  word-break: break-word;
+}
+
+.markdown-doc .code-block {
+  overflow-x: auto;
+  padding: 0.8rem 0.95rem;
+  border: 1px solid #334155;
+  border-radius: 0.5rem;
+  background: #020617;
+  color: #e2e8f0;
+}
+
+.markdown-doc table {
+  width: 100%;
+  border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+}
+
+.markdown-doc th,
+.markdown-doc td {
+  border: 1px solid #334155;
+  padding: 0.45rem 0.6rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.markdown-doc th {
+  background: #1e293b;
+  color: #f8fafc;
+}

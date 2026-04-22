@@ -57,3 +57,8 @@ export async function scanScenarios(faultlabRoot) {
   });
 }
 
+export async function findScenarioById(faultlabRoot, scenarioId) {
+  const scenarios = await scanScenarios(faultlabRoot);
+  return scenarios.find((item) => item.id === scenarioId) || null;
+}
+
