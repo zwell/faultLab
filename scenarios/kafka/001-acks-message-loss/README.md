@@ -1,6 +1,6 @@
-# Kafka 消息丢失（acks=0 / acks=1）
+# Kafka 消息丢失
 
-> **难度**：⭐⭐☆☆☆ &nbsp;|&nbsp; **技术栈**：Kafka 3.x / Docker &nbsp;|&nbsp; **预计时长**：25–40 分钟  
+> **难度**：⭐⭐☆☆☆  |  **技术栈**：Kafka 3.x / Docker  |  **预计时长**：25–40 分钟  
 > **前置知识**：Kafka Producer `acks` 语义、Leader/Follower 副本同步机制  
 > **故障显现时间窗口**：inject 后约 **10-20 秒** 可观察到现象  
 > **参数干预**：是，实验中将 `log.flush.interval.ms` 提高以放大未落盘窗口
@@ -111,3 +111,4 @@ FAULTLAB_SCENARIO=scenarios/kafka/001-acks-message-loss ./cli/faultlab.sh clean
 
 - [Kafka Producer 配置](https://kafka.apache.org/documentation/#producerconfigs)
 - [Kafka Replication 设计](https://kafka.apache.org/documentation/#replication)
+

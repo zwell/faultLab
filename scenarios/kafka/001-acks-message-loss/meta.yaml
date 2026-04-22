@@ -1,5 +1,5 @@
 id: kafka-001
-title: Kafka 消息丢失（acks=0 / acks=1）
+title: Kafka 消息丢失
 tech: kafka
 difficulty: 2
 duration_min: 25

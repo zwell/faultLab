@@ -3,6 +3,18 @@ import ScenarioCard from "../components/ScenarioCard.jsx";
 
 const resources = ["light", "medium", "heavy"];
 const difficulties = [1, 2, 3, 4, 5];
+const resourceLabels = {
+  light: "轻量",
+  medium: "中等",
+  heavy: "重量"
+};
+const difficultyLabels = {
+  1: "L1 新手",
+  2: "L2 入门",
+  3: "L3 中等",
+  4: "L4 进阶",
+  5: "L5 困难"
+};
 
 export default function Home() {
   const [scenarios, setScenarios] = useState([]);
@@ -62,8 +74,8 @@ export default function Home() {
 
   return (
     <main className="mx-auto max-w-7xl px-6 py-8">
-      <h1 className="text-2xl font-bold">FaultLab Scenarios</h1>
-      <p className="mt-2 text-sm text-slate-400">Choose a scenario and start troubleshooting.</p>
+      <h1 className="text-2xl font-bold">FaultLab 场景列表</h1>
+      <p className="mt-2 text-sm text-slate-400">选择一个场景开始排障演练。</p>
 
       <section className="mt-6 rounded-xl border border-slate-800 bg-slate-900/60 p-4">
         <div className="flex flex-wrap gap-2">
@@ -76,7 +88,7 @@ export default function Home() {
                 selectedTech === tech ? "bg-indigo-500 text-white" : "bg-slate-800 text-slate-300"
               }`}
             >
-              {tech}
+              {tech === "all" ? "全部技术栈" : tech}
             </button>
           ))}
         </div>
@@ -93,7 +105,7 @@ export default function Home() {
                   : "border-slate-700 bg-slate-800 text-slate-300"
               }`}
             >
-              Difficulty {level}
+              {difficultyLabels[level]}
             </button>
           ))}
         </div>
@@ -110,21 +122,21 @@ export default function Home() {
                   : "border-slate-700 bg-slate-800 text-slate-300"
               }`}
             >
-              {resource}
+              {resourceLabels[resource] || resource}
             </button>
           ))}
         </div>
       </section>
 
-      {loading && <p className="mt-6 text-slate-400">Loading scenarios...</p>}
-      {error && <p className="mt-6 text-rose-300">Failed to load scenarios: {error}</p>}
+      {loading && <p className="mt-6 text-slate-400">正在加载场景...</p>}
+      {error && <p className="mt-6 text-rose-300">场景加载失败：{error}</p>}
 
       {!loading && !error && (
         <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredScenarios.map((scenario) => (
             <ScenarioCard key={scenario.id} scenario={scenario} />
           ))}
-          {filteredScenarios.length === 0 && <p className="text-slate-400">No scenario matches current filters.</p>}
+          {filteredScenarios.length === 0 && <p className="text-slate-400">当前筛选条件下没有匹配场景。</p>}
         </section>
       )}
     </main>
