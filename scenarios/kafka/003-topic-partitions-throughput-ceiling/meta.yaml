@@ -1,0 +1,13 @@
+id: kafka-003
+title: Kafka 分区数不足导致吞吐上限
+tech: kafka
+difficulty: 2
+duration_min: 25
+duration_max: 40
+resource_level: heavy
+tags:
+  - partitions
+  - consumer-group
+  - throughput
+  - scaling
+parameter_intervention: false

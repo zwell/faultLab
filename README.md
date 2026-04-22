@@ -23,6 +23,7 @@ FaultLab 是一个面向 SRE / 后端工程师 / 中间件使用者的故障演�
 
 - `scenarios/kafka/001-acks-message-loss`
 - `scenarios/kafka/002-consumer-group-rebalance-storm`
+- `scenarios/kafka/003-topic-partitions-throughput-ceiling`
 
 ---
 
@@ -115,6 +116,13 @@ faultLabV2/
         SOLUTION.md
         test.sh
       002-consumer-group-rebalance-storm/
+        meta.yaml
+        docker-compose.yml
+        inject.sh
+        README.md
+        SOLUTION.md
+        test.sh
+      003-topic-partitions-throughput-ceiling/
         meta.yaml
         docker-compose.yml
         inject.sh
