@@ -45,7 +45,7 @@ export default function VerifyChat({ scenarioId }) {
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-md border border-slate-800 bg-slate-950/40 p-2">
         {messages.length === 0 && (
-          <p className="text-xs text-slate-500">描述你的排查结论与证据链，教练会按 SOLUTION 中的评分要点给反馈。</p>
+          <p className="text-xs text-slate-500">描述你的排查结论与证据链</p>
         )}
         {messages.map((msg, idx) => (
           <div key={idx} className={msg.role === "user" ? "flex justify-end" : "flex justify-start"}>
