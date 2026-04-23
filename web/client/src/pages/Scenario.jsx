@@ -71,6 +71,17 @@ function extractUsefulReadme(markdownText) {
   return output.join("\n").trim();
 }
 
+function splitReadmeTitle(markdownText) {
+  if (!markdownText) return { title: "", body: "" };
+  const lines = markdownText.split(/\r?\n/);
+  if (lines[0]?.startsWith("# ")) {
+    const title = lines[0].replace(/^#\s+/, "").trim();
+    const body = lines.slice(1).join("\n").trim();
+    return { title, body };
+  }
+  return { title: "", body: markdownText };
+}
+
 export default function Scenario() {
   const { id } = useParams();
   const [readme, setReadme] = useState("");
@@ -117,6 +128,8 @@ export default function Scenario() {
 
   const rightRatio = useMemo(() => 100 - leftRatio, [leftRatio]);
   const usefulReadme = useMemo(() => extractUsefulReadme(readme), [readme]);
+  const readmeParts = useMemo(() => splitReadmeTitle(usefulReadme), [usefulReadme]);
+  const displayTitle = readmeParts.title || scenarioMeta?.title || id;
   const difficulty = normalizeDifficulty(scenarioMeta?.difficulty);
   const difficultyInfo = difficultyMeta[difficulty];
   const resourceClass =
@@ -157,28 +170,28 @@ export default function Scenario() {
 
       <section className="mt-3 flex h-[calc(100vh-4.5rem)] min-h-[700px] rounded-xl border border-slate-800 bg-slate-900/40">
         <div style={{ width: `${leftRatio}%` }} className="h-full overflow-auto border-r border-slate-800 p-4">
-          {scenarioMeta && (
-            <div className="mb-4 rounded-lg border border-slate-800 bg-slate-900/80 p-3">
-              <h2 className="text-base font-semibold text-slate-100">{scenarioMeta.title || id}</h2>
-              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-                <span className="rounded border border-slate-700 bg-slate-800 px-2 py-0.5 text-slate-200">
-                  技术栈：{scenarioMeta.tech}
-                </span>
-                <span className={`rounded border px-2 py-0.5 font-medium ${difficultyInfo.className}`}>
-                  难度：L{difficulty} {difficultyInfo.label}
-                </span>
-                <span className="rounded border border-slate-700 bg-slate-800 px-2 py-0.5 text-slate-200">
-                  预计时长：{durationLabel}
-                </span>
-                <span className={`rounded border px-2 py-0.5 ${resourceClass}`}>资源等级：{resourceLabel}</span>
-              </div>
-            </div>
-          )}
           {metaError && <p className="mb-4 text-xs text-rose-300">场景元信息加载失败：{metaError}</p>}
           {readmeLoading && <p className="text-sm text-slate-400">Loading README...</p>}
           {readmeError && <p className="text-rose-300">Failed to load README: {readmeError}</p>}
           {!readmeLoading && !readmeError && usefulReadme && (
             <article className="markdown-doc">
+              <h1>{displayTitle}</h1>
+              {scenarioMeta && (
+                <div className="mb-4 rounded-lg border border-slate-800 bg-slate-900/80 p-3">
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="rounded border border-slate-700 bg-slate-800 px-2 py-0.5 text-slate-200">
+                      技术栈：{scenarioMeta.tech}
+                    </span>
+                    <span className={`rounded border px-2 py-0.5 font-medium ${difficultyInfo.className}`}>
+                      难度：L{difficulty} {difficultyInfo.label}
+                    </span>
+                    <span className="rounded border border-slate-700 bg-slate-800 px-2 py-0.5 text-slate-200">
+                      预计时长：{durationLabel}
+                    </span>
+                    <span className={`rounded border px-2 py-0.5 ${resourceClass}`}>资源等级：{resourceLabel}</span>
+                  </div>
+                </div>
+              )}
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
@@ -191,7 +204,7 @@ export default function Scenario() {
                   )
                 }}
               >
-                {usefulReadme}
+                {readmeParts.body}
               </ReactMarkdown>
             </article>
           )}
