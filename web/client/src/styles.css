@@ -129,3 +129,20 @@ body,
   background: #1e293b;
   color: #f8fafc;
 }
+
+.markdown-doc.streaming-cursor::after {
+  content: "";
+  display: inline-block;
+  width: 0.35rem;
+  height: 1em;
+  margin-left: 3px;
+  background: currentColor;
+  vertical-align: text-bottom;
+  animation: verify-cursor-blink 1s step-end infinite;
+}
+
+@keyframes verify-cursor-blink {
+  50% {
+    opacity: 0;
+  }
+}

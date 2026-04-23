@@ -9,6 +9,7 @@ import { getOrCreatePty, registerOutputListener, resizePty } from "./lib/ptyMana
 import { createScenarioRouter } from "./routes/scenarios.js";
 import { createTerminalRouter } from "./routes/terminal.js";
 import { createActionsRouter } from "./routes/actions.js";
+import { createVerifyRouter } from "./routes/verify.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,6 +30,7 @@ app.use(express.json());
 app.use("/api", createScenarioRouter({ faultlabRoot }));
 app.use("/api", createTerminalRouter({ faultlabRoot }));
 app.use("/api", createActionsRouter({ faultlabRoot }));
+app.use("/api", createVerifyRouter({ faultlabRoot }));
 
 const server = createServer(app);
 const wss = new WebSocketServer({ noServer: true });

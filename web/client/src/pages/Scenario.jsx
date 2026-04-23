@@ -5,6 +5,7 @@ import { Link, useParams } from "react-router-dom";
 import ActionBar from "../components/ActionBar.jsx";
 import ContainerTabs from "../components/ContainerTabs.jsx";
 import Terminal from "../components/Terminal.jsx";
+import VerifyChat from "../components/VerifyChat.jsx";
 
 const SECTION_WHITELIST = new Set(["你会遇到什么", "观察与排查", "参考资料"]);
 const SECTION_TITLE_MAP = {
@@ -150,8 +151,8 @@ export default function Scenario() {
             <Terminal scenarioId={id} commandBridgeRef={shellCommandRef} />
           </div>
 
-          <div className="flex-[4] rounded-lg border border-slate-800 bg-slate-900 p-3 text-sm text-slate-400">
-            Verify 对话区（阶段四）
+          <div className="flex min-h-0 flex-[4] flex-col rounded-lg border border-slate-800 bg-slate-900 p-3">
+            <VerifyChat scenarioId={id} />
           </div>
         </div>
       </section>
