@@ -13,14 +13,37 @@ const markdownComponents = {
   )
 };
 
-export default function VerifyChat({ scenarioId }) {
+export default function VerifyChat({
+  scenarioId,
+  collapsed = false,
+  onEngagementChange,
+  onCollapsedFocus,
+  focusBridgeRef
+}) {
   const { status, messages, sending, error, sendMessage } = useVerify(scenarioId);
   const [input, setInput] = useState("");
   const bottomRef = useRef(null);
+  const inputRef = useRef(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, sending]);
+
+  useEffect(() => {
+    // Expand only after actual send/response begins, not while typing draft input.
+    const engaged = messages.length > 0 || sending;
+    onEngagementChange?.(engaged);
+  }, [messages, sending, onEngagementChange]);
+
+  useEffect(() => {
+    if (!focusBridgeRef) return;
+    focusBridgeRef.current = () => {
+      inputRef.current?.focus();
+    };
+    return () => {
+      if (focusBridgeRef) focusBridgeRef.current = null;
+    };
+  }, [focusBridgeRef]);
 
   const onSubmit = () => {
     sendMessage(input);
@@ -28,6 +51,37 @@ export default function VerifyChat({ scenarioId }) {
   };
 
   const configured = status?.configured === true;
+
+  if (collapsed) {
+    return (
+      <div className="flex items-end gap-2">
+        <textarea
+          ref={inputRef}
+          value={input}
+          disabled={!configured || sending}
+          onChange={(e) => setInput(e.target.value)}
+          onFocus={() => onCollapsedFocus?.()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+              e.preventDefault();
+              onSubmit();
+            }
+          }}
+          placeholder={configured ? "输入分析…（Ctrl+Enter 发送）" : "配置 .env 后可使用"}
+          rows={1}
+          className="min-h-[2.5rem] flex-1 resize-none rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-sm text-slate-100 placeholder:text-slate-500 disabled:opacity-50"
+        />
+        <button
+          type="button"
+          disabled={!configured || sending || !input.trim()}
+          onClick={onSubmit}
+          className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {sending ? "发送中" : "发送"}
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-2">
@@ -75,6 +129,7 @@ export default function VerifyChat({ scenarioId }) {
 
       <div className="flex gap-2">
         <textarea
+          ref={inputRef}
           value={input}
           disabled={!configured || sending}
           onChange={(e) => setInput(e.target.value)}

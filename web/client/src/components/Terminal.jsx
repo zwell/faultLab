@@ -106,6 +106,15 @@ export default function Terminal({ scenarioId, commandBridgeRef, focusBridgeRef 
     };
     window.addEventListener("resize", onResize);
 
+    let resizeObserver = null;
+    if (window.ResizeObserver && hostRef.current) {
+      resizeObserver = new window.ResizeObserver(() => {
+        fitAddon.fit();
+        sendResize();
+      });
+      resizeObserver.observe(hostRef.current);
+    }
+
     if (commandBridgeRef) {
       commandBridgeRef.current = (command) => {
         const socket = socketRef.current;
@@ -135,6 +144,9 @@ export default function Terminal({ scenarioId, commandBridgeRef, focusBridgeRef 
       if (commandBridgeRef) commandBridgeRef.current = null;
       if (focusBridgeRef) focusBridgeRef.current = null;
       window.removeEventListener("resize", onResize);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
       disposable.dispose();
       if (socketRef.current) {
         socketRef.current.close();

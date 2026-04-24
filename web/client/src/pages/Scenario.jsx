@@ -92,8 +92,10 @@ export default function Scenario() {
   const [leftRatio, setLeftRatio] = useState(40);
   const [dragging, setDragging] = useState(false);
   const [containerRefreshKey, setContainerRefreshKey] = useState(0);
+  const [activePanel, setActivePanel] = useState("terminal");
   const shellCommandRef = useRef(null);
   const focusShellRef = useRef(null);
+  const focusVerifyRef = useRef(null);
 
   useEffect(() => {
     const loadReadme = async () => {
@@ -173,6 +175,7 @@ export default function Scenario() {
   }, [dragging]);
 
   const attachContainer = async (containerName) => {
+    setActivePanel("terminal");
     focusShellRef.current?.();
     if (!shellCommandRef.current) return;
     shellCommandRef.current({ type: "attach", containerName });
@@ -247,19 +250,59 @@ export default function Scenario() {
               <ActionBar
                 scenarioId={id}
                 onActionSuccess={handleActionSuccess}
-                onActionIntent={() => focusShellRef.current?.()}
+                onActionIntent={() => {
+                  setActivePanel("terminal");
+                  focusShellRef.current?.();
+                }}
               />
             </div>
             <ContainerTabs scenarioId={id} onAttach={attachContainer} refreshKey={containerRefreshKey} />
           </div>
 
-          <div className="min-h-0 flex-[6]">
-            <Terminal scenarioId={id} commandBridgeRef={shellCommandRef} focusBridgeRef={focusShellRef} />
-          </div>
-
-          <div className="flex min-h-0 flex-[4] flex-col rounded-lg border border-slate-800 bg-slate-900 p-3">
-            <VerifyChat scenarioId={id} />
-          </div>
+          {activePanel === "terminal" ? (
+            <div className="flex min-h-0 flex-1 flex-col gap-2">
+              <div className="min-h-0 flex-1">
+                <Terminal scenarioId={id} commandBridgeRef={shellCommandRef} focusBridgeRef={focusShellRef} />
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-900 p-2">
+                <VerifyChat
+                  scenarioId={id}
+                  collapsed
+                  onCollapsedFocus={() => {
+                    setActivePanel("verify");
+                    window.setTimeout(() => focusVerifyRef.current?.(), 0);
+                  }}
+                  focusBridgeRef={focusVerifyRef}
+                  onEngagementChange={(engaged) => {
+                    if (engaged) setActivePanel("verify");
+                  }}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="flex min-h-0 flex-1 flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setActivePanel("terminal");
+                  focusShellRef.current?.();
+                }}
+                className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-left text-xs text-slate-300 hover:border-indigo-400 hover:text-indigo-200"
+              >
+                终端已折叠，点击切回终端继续操作
+              </button>
+              <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-slate-800 bg-slate-900 p-3">
+              <VerifyChat
+                scenarioId={id}
+                collapsed={false}
+                focusBridgeRef={focusVerifyRef}
+                onEngagementChange={(engaged) => {
+                  if (engaged) setActivePanel("verify");
+                }}
+              />
+              </div>
+            </div>
+          )}
         </div>
       </section>
     </main>
