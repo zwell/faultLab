@@ -3,14 +3,11 @@ import { useCallback, useEffect, useState } from "react";
 const idle = "idle";
 const starting = "starting";
 const started = "started";
-const injecting = "injecting";
-const injected = "injected";
 const cleaning = "cleaning";
 
 export default function ActionBar({ scenarioId, onActionSuccess, onActionIntent }) {
   const [phase, setPhase] = useState(idle);
   const [error, setError] = useState("");
-  const [summary, setSummary] = useState(null);
   const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
@@ -31,16 +28,10 @@ export default function ActionBar({ scenarioId, onActionSuccess, onActionIntent 
         if (cancelled) return;
         // If containers are already running, treat as started after refresh.
         if (containers.length > 0) {
-          if (runtime?.injected) {
-            setSummary(runtime.summary || null);
-            setPhase(injected);
-          } else {
-            setPhase((prev) => (prev === injected ? injected : started));
-          }
+          setPhase(started);
           return;
         }
-        // Keep injected state if user already injected in this session.
-        setPhase((prev) => (prev === injected ? injected : idle));
+        setPhase(idle);
       } catch {
         // Ignore sync errors and keep current UI state.
       } finally {
@@ -51,7 +42,6 @@ export default function ActionBar({ scenarioId, onActionSuccess, onActionIntent 
     };
 
     setError("");
-    setSummary(null);
     setPhase(idle);
     syncPhaseFromContainers();
 
@@ -75,7 +65,6 @@ export default function ActionBar({ scenarioId, onActionSuccess, onActionIntent 
   const onStart = async () => {
     onActionIntent?.();
     setError("");
-    setSummary(null);
     setPhase(starting);
     try {
       await postAction("/start");
@@ -87,29 +76,13 @@ export default function ActionBar({ scenarioId, onActionSuccess, onActionIntent 
     }
   };
 
-  const onInject = async () => {
-    onActionIntent?.();
-    setError("");
-    setPhase(injecting);
-    try {
-      const data = await postAction("/inject");
-      setSummary(data.summary || null);
-      setPhase(injected);
-      onActionSuccess?.("inject");
-    } catch (err) {
-      setError(err.message || "注入失败");
-      setPhase(started);
-    }
-  };
-
   const onClean = async () => {
     onActionIntent?.();
-    const fallbackPhase = phase === started ? started : injected;
+    const fallbackPhase = started;
     setError("");
     setPhase(cleaning);
     try {
       await postAction("/clean");
-      setSummary(null);
       setPhase(idle);
       onActionSuccess?.("clean");
     } catch (err) {
@@ -118,11 +91,10 @@ export default function ActionBar({ scenarioId, onActionSuccess, onActionIntent 
     }
   };
 
-  const busy = phase === starting || phase === injecting || phase === cleaning || syncing;
+  const busy = phase === starting || phase === cleaning || syncing;
   const canStart = phase === idle && !busy;
-  const canRestart = (phase === started || phase === injected) && !busy;
-  const canInject = phase === started && !busy;
-  const canClean = (phase === injected || phase === started) && !busy;
+  const canRestart = phase === started && !busy;
+  const canClean = phase === started && !busy;
 
   return (
     <div className="space-y-2">
@@ -140,14 +112,6 @@ export default function ActionBar({ scenarioId, onActionSuccess, onActionIntent 
         </button>
         <button
           type="button"
-          disabled={!canInject}
-          onClick={onInject}
-          className="rounded bg-indigo-600 px-3 py-1 text-sm font-medium text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          注入故障{phase === injecting ? "…" : ""}
-        </button>
-        <button
-          type="button"
           disabled={!canClean}
           onClick={onClean}
           className="rounded bg-slate-700 px-3 py-1 text-sm font-medium text-slate-100 hover:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-40"
@@ -162,20 +126,6 @@ export default function ActionBar({ scenarioId, onActionSuccess, onActionIntent 
       </div>
 
       {error && <p className="text-xs text-rose-300">{error}</p>}
-
-      {summary && Object.keys(summary).length > 0 && (
-        <div className="rounded-md border border-slate-700 bg-slate-950/80 p-2 text-xs text-slate-200">
-          <div className="mb-1 font-semibold text-slate-300">注入摘要</div>
-          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
-            {Object.entries(summary).map(([key, value]) => (
-              <div key={key} className="contents">
-                <dt className="text-slate-500">{key}</dt>
-                <dd className="font-mono text-slate-100">{String(value)}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-      )}
     </div>
   );
 }

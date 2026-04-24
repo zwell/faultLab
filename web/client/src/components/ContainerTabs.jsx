@@ -46,6 +46,7 @@ export default function ContainerTabs({ scenarioId, onAttach, refreshKey = 0 }) 
 
   return (
     <div className="flex flex-wrap items-center gap-2">
+      <span className="text-xs text-slate-300">容器：</span>
       {loading && <span className="text-xs text-slate-400">Loading containers...</span>}
       {fetchError && <span className="text-xs text-rose-300">{fetchError}</span>}
       {attachError && <span className="text-xs text-rose-300">{attachError}</span>}

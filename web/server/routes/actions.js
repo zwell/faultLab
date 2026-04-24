@@ -12,7 +12,6 @@ const GIT_BASH = "C:/Program Files/Git/bin/bash.exe";
 const START_OK = "Environment ready";
 const START_UNHEALTHY = "Environment started but not fully healthy";
 
-const injectLocks = new Map();
 const startLocks = new Map();
 const cleanLocks = new Map();
 const runtimeStates = new Map();
@@ -75,10 +74,11 @@ async function getLatestContainerStartAtMs(scenarioDir) {
 function faultlabCommandLine(faultlabRoot, scenarioRelativeDir, action, shellKind) {
   const root = toPosixPath(faultlabRoot);
   const rel = scenarioRelativeDir.replace(/\\/g, "/");
-  const inner = `cd "${root}" && export FAULTLAB_SCENARIO="${rel}" && ./cli/faultlab.sh ${action}`;
+  const innerLines = [`cd "${root}"`, `export FAULTLAB_SCENARIO="${rel}"`, `./cli/faultlab.sh ${action}`];
+  const inner = innerLines.join(" && ");
 
   if (shellKind === "git-bash" || shellKind === "bash" || shellKind === "zsh" || shellKind === "sh") {
-    return `${inner}\n`;
+    return `${innerLines.join("\n")}\n`;
   }
 
   if (shellKind === "powershell" && process.platform === "win32" && fs.existsSync(GIT_BASH)) {
@@ -90,8 +90,15 @@ function faultlabCommandLine(faultlabRoot, scenarioRelativeDir, action, shellKin
 }
 
 function writeActionWithContextResetHint(ptyProcess, commandLine, actionLabel) {
-  ptyProcess.write(`echo "[FaultLab] Reset terminal session before ${actionLabel}"\n`);
-  ptyProcess.write(commandLine);
+  // Give a fresh login shell a brief moment before sending commands.
+  setTimeout(() => {
+    try {
+      ptyProcess.write(`echo "[FaultLab] Reset terminal session before ${actionLabel}"\n`);
+      ptyProcess.write(commandLine);
+    } catch {
+      /* ignore */
+    }
+  }, 120);
 }
 
 function tryParseInjectSummary(buffer) {
@@ -290,20 +297,37 @@ export function createActionsRouter({ faultlabRoot }) {
       const ptyProcess = resetPtySession(scenario.id, scenario.scenarioDir);
       const shellKind = getPtyShellKind(scenario.id);
       runtimeStates.set(scenario.id, { injected: false, summary: null, injectedAtMs: null });
-      const resultPromise = waitForStartResult(scenario.id, 360000);
+      const startPromise = waitForStartResult(scenario.id, 360000);
       writeActionWithContextResetHint(
         ptyProcess,
         faultlabCommandLine(faultlabRoot, scenario.relativeDir, "start", shellKind),
         "start"
       );
-      const result = await resultPromise;
+      const startResult = await startPromise;
 
-      if (!result.ok) {
-        res.status(500).json({ ok: false, error: result.detail || "start failed" });
+      if (!startResult.ok) {
+        res.status(500).json({ ok: false, error: startResult.detail || "start failed" });
         return;
       }
 
-      res.json({ ok: true });
+      const injectPromise = waitForInjectSummary(scenario.id, 240000);
+      writeActionWithContextResetHint(
+        ptyProcess,
+        faultlabCommandLine(faultlabRoot, scenario.relativeDir, "inject", shellKind),
+        "prepare scenario"
+      );
+      const injectResult = await injectPromise;
+      if (!injectResult.ok) {
+        res.status(500).json({ ok: false, error: injectResult.detail || "scenario preparation failed" });
+        return;
+      }
+
+      runtimeStates.set(scenario.id, {
+        injected: true,
+        summary: injectResult.summary || null,
+        injectedAtMs: Date.now()
+      });
+      res.json({ ok: true, summary: injectResult.summary || null });
     } catch (error) {
       res.status(500).json({ ok: false, error: error.message || "start failed" });
     } finally {
@@ -351,46 +375,10 @@ export function createActionsRouter({ faultlabRoot }) {
   });
 
   router.post("/scenarios/:id/inject", async (req, res) => {
-    const scenarioId = req.params.id;
-    if (injectLocks.get(scenarioId)) {
-      res.status(409).json({ ok: false, error: "Inject already running for this scenario." });
-      return;
-    }
-
-    injectLocks.set(scenarioId, true);
-    try {
-      const scenario = await findScenarioById(faultlabRoot, scenarioId);
-      if (!scenario) {
-        res.status(404).json({ ok: false, error: "Scenario not found" });
-        return;
-      }
-
-      const ptyProcess = resetPtySession(scenario.id, scenario.scenarioDir);
-      const shellKind = getPtyShellKind(scenario.id);
-      const resultPromise = waitForInjectSummary(scenario.id, 240000);
-      writeActionWithContextResetHint(
-        ptyProcess,
-        faultlabCommandLine(faultlabRoot, scenario.relativeDir, "inject", shellKind),
-        "inject"
-      );
-      const result = await resultPromise;
-
-      if (!result.ok) {
-        res.status(500).json({ ok: false, error: result.detail || "inject failed" });
-        return;
-      }
-
-      runtimeStates.set(scenario.id, {
-        injected: true,
-        summary: result.summary || null,
-        injectedAtMs: Date.now()
-      });
-      res.json({ ok: true, summary: result.summary });
-    } catch (error) {
-      res.status(500).json({ ok: false, error: error.message || "inject failed" });
-    } finally {
-      injectLocks.delete(scenarioId);
-    }
+    res.status(410).json({
+      ok: false,
+      error: "注入功能已并入启动环境。请使用“启动环境/重启环境”。"
+    });
   });
 
   return router;
