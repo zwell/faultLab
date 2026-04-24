@@ -38,6 +38,16 @@ npm run dev
 
 > 若 `npm install` 时编译原生依赖失败，在 macOS 上通常需要先安装 **Xcode Command Line Tools**（`xcode-select --install`）；在 Windows 上需要可用的 **Visual Studio Build Tools** 或对应 C++ 生成工具，以便构建 `node-pty`。
 
+### 终端里先显示 “Connected” 马上又 “Terminal disconnected”
+
+常见原因是 **`node-pty` 自带的 `spawn-helper` 没有执行权限**（上游 npm 包在 macOS 上以 `644` 安装），服务端创建伪终端失败并关闭 WebSocket。`npm install` 后会自动跑 `postinstall` 修复；若你仍遇到该现象，在 `web/` 目录执行：
+
+```bash
+npm run fix-node-pty
+```
+
+然后重启 `npm run dev`。
+
 ---
 
 ## 纯命令行（不使用 Web）

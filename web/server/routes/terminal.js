@@ -14,6 +14,46 @@ function run(command, cwd) {
   });
 }
 
+function buildContainerPrefixes(scenario) {
+  const base = String(scenario?.id || "").trim();
+  const compact = base.replace(/[^a-zA-Z0-9]/g, "");
+  const digitMatch = base.match(/(\d+)/g);
+  const digits = digitMatch ? digitMatch.join("") : "";
+  const tech = String(scenario?.tech || "").trim();
+  const techCompact = (tech + digits).replace(/[^a-zA-Z0-9]/g, "");
+  return Array.from(new Set([base, compact, techCompact].filter(Boolean)));
+}
+
+function parseDockerPsJsonLines(output, prefixes) {
+  const rows = [];
+  for (const line of output.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    let item;
+    try {
+      item = JSON.parse(trimmed);
+    } catch {
+      continue;
+    }
+    const rawName = item.Names;
+    const name = Array.isArray(rawName) ? rawName[0] : rawName;
+    if (!name || typeof name !== "string") continue;
+    const normalized = name.replace(/^\//, "");
+    const matchedPrefix =
+      prefixes.find((prefix) => normalized.startsWith(`${prefix}-`)) ||
+      prefixes.find((prefix) => normalized.startsWith(prefix)) ||
+      "";
+    rows.push({
+      name: normalized,
+      role:
+        matchedPrefix && normalized.startsWith(`${matchedPrefix}-`)
+          ? normalized.slice(matchedPrefix.length + 1)
+          : normalized
+    });
+  }
+  return rows;
+}
+
 export function createTerminalRouter({ faultlabRoot }) {
   const router = express.Router();
 
@@ -25,22 +65,29 @@ export function createTerminalRouter({ faultlabRoot }) {
         return;
       }
 
-      const prefix = scenario.id;
-      const command = `docker ps --filter "name=${prefix}" --format "{{json .}}"`;
-      const output = await run(command, scenario.scenarioDir);
-      const rows = output
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .map((line) => JSON.parse(line))
-        .map((item) => item.Names)
-        .filter(Boolean)
-        .map((name) => ({
-          name,
-          role: name.startsWith(`${prefix}-`) ? name.slice(prefix.length + 1) : name
-        }));
+      const prefixes = buildContainerPrefixes(scenario);
+      const psCommand = prefixes
+        .map((prefix) => `docker ps --filter "name=${prefix}" --format "{{json .}}"`)
+        .join(" ; ");
 
-      res.json(rows);
+      try {
+        const output = await run(psCommand, scenario.scenarioDir);
+        const containers = parseDockerPsJsonLines(output, prefixes);
+        res.json({
+          containers,
+          dockerOk: true,
+          message: null
+        });
+      } catch (error) {
+        const detail = error?.message || String(error);
+        console.warn(`[containers] docker ps failed for ${scenario.id}:`, detail);
+        res.json({
+          containers: [],
+          dockerOk: false,
+          message:
+            "无法连接 Docker 或未启动。请先在本机启动 Docker，再使用「启动环境」；此处仅用于列出运行中的容器快捷方式。"
+        });
+      }
     } catch (error) {
       res.status(500).json({ error: "Failed to list containers", detail: error.message });
     }

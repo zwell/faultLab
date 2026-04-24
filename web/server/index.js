@@ -62,10 +62,31 @@ server.on("upgrade", async (request, socket, head) => {
 });
 
 wss.on("connection", (ws) => {
-  const ptySession = getOrCreatePty(ws.scenarioId, ws.scenarioDir);
+  try {
+    getOrCreatePty(ws.scenarioId, ws.scenarioDir);
+  } catch (error) {
+    const msg = error?.message || String(error);
+    console.error("[terminal] pty spawn failed:", msg);
+    try {
+      ws.send(
+        `\r\n\x1b[31m[FaultLab] Terminal failed to start: ${msg}\x1b[0m\r\n` +
+          `\x1b[33mOn macOS this is often fixed by running: cd web && npm run fix-node-pty\x1b[0m\r\n` +
+          `\x1b[33m(or reinstall: npm install) so node-pty’s spawn-helper gets execute permission.\x1b[0m\r\n`
+      );
+    } catch {
+      /* ignore */
+    }
+    ws.close();
+    return;
+  }
+
   const unsubscribe = registerOutputListener(ws.scenarioId, (chunk) => {
     if (ws.readyState === 1) {
-      ws.send(chunk);
+      try {
+        ws.send(chunk);
+      } catch {
+        /* ignore */
+      }
     }
   });
 
@@ -83,7 +104,22 @@ wss.on("connection", (ws) => {
     }
 
     if (payload?.type === "input" && typeof payload.data === "string") {
-      ptySession.write(payload.data);
+      try {
+        // If user typed `exit`, previous pty may already be gone.
+        // Re-acquire lazily so next keystroke auto-recovers session.
+        const session = getOrCreatePty(ws.scenarioId, ws.scenarioDir);
+        session.write(payload.data);
+      } catch (error) {
+        const msg = error?.message || String(error);
+        console.error("[terminal] failed to write input:", msg);
+        if (ws.readyState === 1) {
+          try {
+            ws.send(`\r\n\x1b[31m[FaultLab] Terminal unavailable: ${msg}\x1b[0m\r\n`);
+          } catch {
+            /* ignore */
+          }
+        }
+      }
     }
   });
 

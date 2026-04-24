@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "postinstall": "node scripts/fix-node-pty-prebuilds.mjs",
+    "fix-node-pty": "node scripts/fix-node-pty-prebuilds.mjs",
     "dev": "concurrently \"npm:dev:server\" \"npm:dev:client\"",
     "dev:server": "node server/index.js",
     "dev:client": "vite --host 0.0.0.0 --port 5173",

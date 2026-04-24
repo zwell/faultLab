@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 const idle = "idle";
 const starting = "starting";
@@ -11,6 +11,54 @@ export default function ActionBar({ scenarioId }) {
   const [phase, setPhase] = useState(idle);
   const [error, setError] = useState("");
   const [summary, setSummary] = useState(null);
+  const [syncing, setSyncing] = useState(false);
+
+  useEffect(() => {
+    if (!scenarioId) return;
+    let cancelled = false;
+
+    const syncPhaseFromContainers = async () => {
+      try {
+        setSyncing(true);
+        const [containersResp, runtimeResp] = await Promise.all([
+          fetch(`/api/scenarios/${scenarioId}/containers`),
+          fetch(`/api/scenarios/${scenarioId}/runtime-state`)
+        ]);
+        if (!containersResp.ok) return;
+        const data = await containersResp.json().catch(() => ({}));
+        const runtime = runtimeResp.ok ? await runtimeResp.json().catch(() => ({})) : {};
+        const containers = Array.isArray(data) ? data : data.containers || [];
+        if (cancelled) return;
+        // If containers are already running, treat as started after refresh.
+        if (containers.length > 0) {
+          if (runtime?.injected) {
+            setSummary(runtime.summary || null);
+            setPhase(injected);
+          } else {
+            setPhase((prev) => (prev === injected ? injected : started));
+          }
+          return;
+        }
+        // Keep injected state if user already injected in this session.
+        setPhase((prev) => (prev === injected ? injected : idle));
+      } catch {
+        // Ignore sync errors and keep current UI state.
+      } finally {
+        if (!cancelled) {
+          setSyncing(false);
+        }
+      }
+    };
+
+    setError("");
+    setSummary(null);
+    setPhase(idle);
+    syncPhaseFromContainers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [scenarioId]);
 
   const postAction = useCallback(
     async (path) => {
@@ -63,7 +111,7 @@ export default function ActionBar({ scenarioId }) {
     }
   };
 
-  const busy = phase === starting || phase === injecting || phase === cleaning;
+  const busy = phase === starting || phase === injecting || phase === cleaning || syncing;
   const canStart = phase === idle && !busy;
   const canRestart = (phase === started || phase === injected) && !busy;
   const canInject = phase === started && !busy;
@@ -99,7 +147,11 @@ export default function ActionBar({ scenarioId }) {
         >
           清理环境{phase === cleaning ? "…" : ""}
         </button>
-        {busy && <span className="text-xs text-slate-400">执行中，输出在下方终端</span>}
+        {busy && (
+          <span className="text-xs text-slate-400">
+            {syncing ? "同步环境状态中..." : "执行中，输出在下方终端"}
+          </span>
+        )}
       </div>
 
       {error && <p className="text-xs text-rose-300">{error}</p>}

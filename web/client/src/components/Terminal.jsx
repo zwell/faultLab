@@ -12,6 +12,8 @@ export default function Terminal({ scenarioId, commandBridgeRef }) {
   useEffect(() => {
     if (!hostRef.current || !scenarioId) return undefined;
 
+    let disposed = false;
+
     const fitAddon = new FitAddon();
     const term = new XTerm({
       cursorBlink: true,
@@ -37,18 +39,33 @@ export default function Terminal({ scenarioId, commandBridgeRef }) {
       socket.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }));
     };
 
+    const isNearBottom = () => {
+      const viewportRows = term.rows || 0;
+      const cursorY = term.buffer.active.viewportY || 0;
+      const baseY = term.buffer.active.baseY || 0;
+      return baseY - cursorY <= Math.max(2, Math.floor(viewportRows * 0.1));
+    };
+
     socket.addEventListener("open", () => {
+      if (disposed) {
+        socket.close();
+        return;
+      }
       term.writeln("\x1b[32mConnected to terminal session.\x1b[0m");
       term.scrollToBottom();
       sendResize();
     });
 
     socket.addEventListener("message", (event) => {
+      const shouldFollow = isNearBottom();
       term.write(String(event.data || ""));
-      term.scrollToBottom();
+      if (shouldFollow) {
+        term.scrollToBottom();
+      }
     });
 
     socket.addEventListener("close", () => {
+      if (disposed) return;
       term.writeln("\r\n\x1b[31mTerminal disconnected.\x1b[0m");
       term.scrollToBottom();
     });
@@ -73,6 +90,7 @@ export default function Terminal({ scenarioId, commandBridgeRef }) {
     }
 
     return () => {
+      disposed = true;
       if (commandBridgeRef) commandBridgeRef.current = null;
       window.removeEventListener("resize", onResize);
       disposable.dispose();

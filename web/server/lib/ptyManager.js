@@ -58,7 +58,6 @@ export function getOrCreatePty(scenarioId, cwd) {
   ptyProcess.onData((chunk) => emitOutput(scenarioId, chunk));
   ptyProcess.onExit(() => {
     sessions.delete(scenarioId);
-    listeners.delete(scenarioId);
     shellKinds.delete(scenarioId);
   });
 
