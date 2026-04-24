@@ -10,12 +10,14 @@ import { createScenarioRouter } from "./routes/scenarios.js";
 import { createTerminalRouter } from "./routes/terminal.js";
 import { createActionsRouter } from "./routes/actions.js";
 import { createVerifyRouter } from "./routes/verify.js";
+import { createSystemRouter, createSystemStateStore } from "./routes/system.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const webRoot = path.resolve(__dirname, "..");
 const faultlabRoot = path.resolve(process.env.FAULTLAB_ROOT || path.resolve(webRoot, ".."));
 const port = Number(process.env.PORT || 3001);
+const systemStateStore = createSystemStateStore({ faultlabRoot });
 
 function checkDocker() {
   exec("docker info", (error) => {
@@ -31,6 +33,7 @@ app.use("/api", createScenarioRouter({ faultlabRoot }));
 app.use("/api", createTerminalRouter({ faultlabRoot }));
 app.use("/api", createActionsRouter({ faultlabRoot }));
 app.use("/api", createVerifyRouter({ faultlabRoot }));
+app.use("/api", createSystemRouter({ faultlabRoot, systemStateStore }));
 
 const server = createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -132,5 +135,22 @@ server.listen(port, () => {
   checkDocker();
   console.log(`FaultLab server listening on http://localhost:${port}`);
   console.log(`FAULTLAB_ROOT resolved to: ${faultlabRoot}`);
+  systemStateStore
+    .refresh()
+    .then((result) => {
+      const docker = result.checks.find((item) => item.key === "docker");
+      const env = result.checks.find((item) => item.key === "env");
+      const status = result.ok ? "ok" : "needs_attention";
+      console.log(`[startup-checks] status=${status}`);
+      if (docker) {
+        console.log(`[startup-checks] docker=${docker.ok ? "ok" : "fail"} detail="${docker.detail}"`);
+      }
+      if (env) {
+        console.log(`[startup-checks] env=${env.ok ? "ok" : "fail"} detail="${env.detail}"`);
+      }
+    })
+    .catch((error) => {
+      console.warn(`[startup-checks] failed: ${error?.message || String(error)}`);
+    });
 });
 

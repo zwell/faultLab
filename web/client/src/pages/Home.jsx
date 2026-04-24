@@ -20,6 +20,8 @@ export default function Home() {
   const [scenarios, setScenarios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [checks, setChecks] = useState(null);
+  const [checkError, setCheckError] = useState("");
   const [selectedTech, setSelectedTech] = useState("all");
   const [selectedDifficulties, setSelectedDifficulties] = useState([]);
   const [selectedResources, setSelectedResources] = useState([]);
@@ -42,6 +44,22 @@ export default function Home() {
     };
 
     load();
+  }, []);
+
+  useEffect(() => {
+    const loadChecks = async () => {
+      try {
+        setCheckError("");
+        const response = await fetch("/api/system/checks");
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        setChecks(data);
+      } catch (err) {
+        setCheckError(err.message || "Unknown error");
+      }
+    };
+
+    loadChecks();
   }, []);
 
   const techOptions = useMemo(() => {
@@ -76,6 +94,52 @@ export default function Home() {
     <main className="mx-auto max-w-7xl px-6 py-8">
       <h1 className="text-2xl font-bold">FaultLab 场景列表</h1>
       <p className="mt-2 text-sm text-slate-400">选择一个场景开始排障演练。</p>
+
+      {checkError && <p className="mt-4 text-xs text-rose-300">启动检测失败：{checkError}</p>}
+      {checks && (
+        <section
+          className={`mt-4 rounded-xl border p-4 ${
+            checks.ok ? "border-emerald-500/30 bg-emerald-500/10" : "border-amber-500/30 bg-amber-500/10"
+          }`}
+        >
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="text-sm font-semibold">{checks.ok ? "运行前检查通过" : "运行前检查未通过"}</h2>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  setCheckError("");
+                  const response = await fetch("/api/system/checks");
+                  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                  const data = await response.json();
+                  setChecks(data);
+                } catch (err) {
+                  setCheckError(err.message || "Unknown error");
+                }
+              }}
+              className="rounded-md border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-200 hover:border-indigo-400"
+            >
+              重新检测
+            </button>
+          </div>
+          <div className="grid gap-2 md:grid-cols-2">
+            {(checks.checks || []).map((item) => (
+              <article
+                key={item.key}
+                className={`rounded-lg border p-3 ${
+                  item.ok ? "border-emerald-500/30 bg-emerald-950/20" : "border-amber-500/40 bg-amber-950/20"
+                }`}
+              >
+                <div className="text-sm font-medium">
+                  {item.ok ? "✅" : "⚠️"} {item.label}
+                </div>
+                <p className="mt-1 text-xs text-slate-300">{item.detail}</p>
+                {!item.ok && item.hint && <p className="mt-1 text-xs text-amber-300">{item.hint}</p>}
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="mt-6 rounded-xl border border-slate-800 bg-slate-900/60 p-4">
         <div className="flex flex-wrap gap-2">
