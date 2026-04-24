@@ -93,6 +93,7 @@ export default function Scenario() {
   const [dragging, setDragging] = useState(false);
   const [containerRefreshKey, setContainerRefreshKey] = useState(0);
   const shellCommandRef = useRef(null);
+  const focusShellRef = useRef(null);
 
   useEffect(() => {
     const loadReadme = async () => {
@@ -110,6 +111,19 @@ export default function Scenario() {
       }
     };
     loadReadme();
+  }, [id]);
+
+  useEffect(() => {
+    const t1 = window.setTimeout(() => {
+      focusShellRef.current?.();
+    }, 120);
+    const t2 = window.setTimeout(() => {
+      focusShellRef.current?.();
+    }, 450);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
   }, [id]);
   useEffect(() => {
     const loadMeta = async () => {
@@ -159,25 +173,9 @@ export default function Scenario() {
   }, [dragging]);
 
   const attachContainer = async (containerName) => {
-    try {
-      const response = await fetch(`/api/scenarios/${id}/attach`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ containerName })
-      });
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        if (response.status === 404 && shellCommandRef.current) {
-          // Backward compatibility when server has not reloaded new /attach route yet.
-          shellCommandRef.current(`docker exec -it ${containerName} /bin/bash || docker exec -it ${containerName} /bin/sh`);
-          return;
-        }
-        throw new Error(data.error || `HTTP ${response.status}`);
-      }
-    } catch (error) {
-      // Surface in devtools; terminal still remains usable.
-      console.error("[attach] failed:", error?.message || error);
-    }
+    focusShellRef.current?.();
+    if (!shellCommandRef.current) return;
+    shellCommandRef.current({ type: "attach", containerName });
   };
 
   const handleActionSuccess = () => {
@@ -185,12 +183,17 @@ export default function Scenario() {
   };
 
   return (
-    <main className="h-screen overflow-hidden px-4 py-4">
-      <Link to="/" className="text-sm text-indigo-300 hover:text-indigo-200">
-        Back to scenarios
-      </Link>
+    <main className="h-screen overflow-y-auto px-4 py-4">
+      <div className="mb-3 flex items-center">
+        <Link
+          to="/"
+          className="rounded-md border border-slate-700 bg-slate-900/80 px-3 py-1.5 text-sm text-indigo-300 hover:border-indigo-400 hover:text-indigo-200"
+        >
+          ← 返回列表
+        </Link>
+      </div>
 
-      <section className="mt-3 flex h-[calc(100vh-4.5rem)] min-h-[700px] rounded-xl border border-slate-800 bg-slate-900/40">
+      <section className="flex h-[calc(100vh-5.75rem)] min-h-[600px] rounded-xl border border-slate-800 bg-slate-900/40">
         <div style={{ width: `${leftRatio}%` }} className="h-full overflow-auto border-r border-slate-800 p-4">
           {metaError && <p className="mb-4 text-xs text-rose-300">场景元信息加载失败：{metaError}</p>}
           {readmeLoading && <p className="text-sm text-slate-400">Loading README...</p>}
@@ -241,13 +244,17 @@ export default function Scenario() {
         <div style={{ width: `${rightRatio}%` }} className="flex h-full min-w-0 flex-col gap-3 p-3">
           <div className="rounded-lg border border-slate-800 bg-slate-900 p-3">
             <div className="mb-2">
-              <ActionBar scenarioId={id} onActionSuccess={handleActionSuccess} />
+              <ActionBar
+                scenarioId={id}
+                onActionSuccess={handleActionSuccess}
+                onActionIntent={() => focusShellRef.current?.()}
+              />
             </div>
             <ContainerTabs scenarioId={id} onAttach={attachContainer} refreshKey={containerRefreshKey} />
           </div>
 
           <div className="min-h-0 flex-[6]">
-            <Terminal scenarioId={id} commandBridgeRef={shellCommandRef} />
+            <Terminal scenarioId={id} commandBridgeRef={shellCommandRef} focusBridgeRef={focusShellRef} />
           </div>
 
           <div className="flex min-h-0 flex-[4] flex-col rounded-lg border border-slate-800 bg-slate-900 p-3">

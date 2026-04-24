@@ -5,6 +5,8 @@ export default function ContainerTabs({ scenarioId, onAttach, refreshKey = 0 }) 
   const [loading, setLoading] = useState(false);
   const [fetchError, setFetchError] = useState("");
   const [dockerHint, setDockerHint] = useState("");
+  const [attachingName, setAttachingName] = useState("");
+  const [attachError, setAttachError] = useState("");
 
   useEffect(() => {
     if (!scenarioId) return;
@@ -46,6 +48,7 @@ export default function ContainerTabs({ scenarioId, onAttach, refreshKey = 0 }) 
     <div className="flex flex-wrap items-center gap-2">
       {loading && <span className="text-xs text-slate-400">Loading containers...</span>}
       {fetchError && <span className="text-xs text-rose-300">{fetchError}</span>}
+      {attachError && <span className="text-xs text-rose-300">{attachError}</span>}
       {!loading && !fetchError && dockerHint && (
         <span className="text-xs text-slate-500" title={dockerHint}>
           {dockerHint}
@@ -63,11 +66,22 @@ export default function ContainerTabs({ scenarioId, onAttach, refreshKey = 0 }) 
           <button
             key={container.name}
             type="button"
-            onClick={() => onAttach(container.name)}
-            className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-200 hover:border-indigo-400"
+            disabled={attachingName === container.name}
+            onClick={async () => {
+              try {
+                setAttachError("");
+                setAttachingName(container.name);
+                await onAttach(container.name);
+              } catch (error) {
+                setAttachError(error?.message || "容器切换失败");
+              } finally {
+                setAttachingName("");
+              }
+            }}
+            className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-200 hover:border-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
             title={container.name}
           >
-            {container.role}
+            {attachingName === container.name ? `${container.role}...` : container.role}
           </button>
         ))}
     </div>

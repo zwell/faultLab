@@ -5,7 +5,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { WebSocketServer } from "ws";
 import { findScenarioById } from "./lib/scenarioScanner.js";
-import { getOrCreatePty, registerOutputListener, resizePty } from "./lib/ptyManager.js";
+import { getOrCreatePty, registerOutputListener, resizePty, resetPtySession } from "./lib/ptyManager.js";
 import { createScenarioRouter } from "./routes/scenarios.js";
 import { createTerminalRouter } from "./routes/terminal.js";
 import { createActionsRouter } from "./routes/actions.js";
@@ -109,6 +109,42 @@ wss.on("connection", (ws) => {
 
     if (payload?.type === "resize") {
       resizePty(ws.scenarioId, payload.cols, payload.rows);
+      return;
+    }
+
+    if (payload?.type === "attach" && typeof payload.containerName === "string") {
+      const containerName = payload.containerName.trim();
+      if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(containerName)) {
+        if (ws.readyState === 1) {
+          try {
+            ws.send(`\r\n\x1b[31m[FaultLab] Invalid container name: ${containerName}\x1b[0m\r\n`);
+          } catch {
+            /* ignore */
+          }
+        }
+        return;
+      }
+      try {
+        if (ws.readyState === 1) {
+          try {
+            ws.send(`\r\n\x1b[36m[FaultLab] Switching to container: ${containerName}\x1b[0m\r\n`);
+          } catch {
+            /* ignore */
+          }
+        }
+        const session = resetPtySession(ws.scenarioId, ws.scenarioDir);
+        session.write(`echo "[FaultLab] Attach to container: ${containerName}"\n`);
+        session.write(`docker exec -it ${containerName} /bin/bash || docker exec -it ${containerName} /bin/sh\n`);
+      } catch (error) {
+        const msg = error?.message || String(error);
+        if (ws.readyState === 1) {
+          try {
+            ws.send(`\r\n\x1b[31m[FaultLab] Attach failed: ${msg}\x1b[0m\r\n`);
+          } catch {
+            /* ignore */
+          }
+        }
+      }
       return;
     }
 

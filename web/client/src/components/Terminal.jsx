@@ -3,7 +3,7 @@ import { Terminal as XTerm } from "xterm";
 import { FitAddon } from "xterm-addon-fit";
 import "xterm/css/xterm.css";
 
-export default function Terminal({ scenarioId, commandBridgeRef }) {
+export default function Terminal({ scenarioId, commandBridgeRef, focusBridgeRef }) {
   const hostRef = useRef(null);
   const socketRef = useRef(null);
 
@@ -13,6 +13,7 @@ export default function Terminal({ scenarioId, commandBridgeRef }) {
     let disposed = false;
     let reconnectTimer = null;
     let reconnectAttempts = 0;
+    let hasRequestedPrompt = false;
 
     const fitAddon = new FitAddon();
     const term = new XTerm({
@@ -64,6 +65,11 @@ export default function Terminal({ scenarioId, commandBridgeRef }) {
         term.writeln(`\x1b[90m[FaultLab] Scenario: ${scenarioId}\x1b[0m`);
         term.scrollToBottom();
         sendResize();
+        if (!hasRequestedPrompt) {
+          hasRequestedPrompt = true;
+          // Trigger shell prompt render without running helper commands like pwd/ls.
+          socket.send(JSON.stringify({ type: "input", data: "\n" }));
+        }
       });
 
       socket.addEventListener("message", (event) => {
@@ -103,9 +109,21 @@ export default function Terminal({ scenarioId, commandBridgeRef }) {
     if (commandBridgeRef) {
       commandBridgeRef.current = (command) => {
         const socket = socketRef.current;
-        if (!socket) return;
-        if (socket.readyState !== WebSocket.OPEN) return;
-        socket.send(JSON.stringify({ type: "input", data: `${command}\n` }));
+        if (!socket || socket.readyState !== WebSocket.OPEN) {
+          throw new Error("终端连接未就绪，请稍后重试。");
+        }
+        if (typeof command === "string") {
+          socket.send(JSON.stringify({ type: "input", data: `${command}\n` }));
+          return;
+        }
+        if (command && command.type === "attach" && typeof command.containerName === "string") {
+          socket.send(JSON.stringify({ type: "attach", containerName: command.containerName }));
+        }
+      };
+    }
+    if (focusBridgeRef) {
+      focusBridgeRef.current = () => {
+        term.focus();
       };
     }
 
@@ -115,6 +133,7 @@ export default function Terminal({ scenarioId, commandBridgeRef }) {
         window.clearTimeout(reconnectTimer);
       }
       if (commandBridgeRef) commandBridgeRef.current = null;
+      if (focusBridgeRef) focusBridgeRef.current = null;
       window.removeEventListener("resize", onResize);
       disposable.dispose();
       if (socketRef.current) {
@@ -123,7 +142,7 @@ export default function Terminal({ scenarioId, commandBridgeRef }) {
       }
       term.dispose();
     };
-  }, [scenarioId, commandBridgeRef]);
+  }, [scenarioId, commandBridgeRef, focusBridgeRef]);
 
   return <div ref={hostRef} className="h-full w-full overflow-hidden rounded-lg border border-slate-800" />;
 }

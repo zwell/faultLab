@@ -7,7 +7,7 @@ const injecting = "injecting";
 const injected = "injected";
 const cleaning = "cleaning";
 
-export default function ActionBar({ scenarioId, onActionSuccess }) {
+export default function ActionBar({ scenarioId, onActionSuccess, onActionIntent }) {
   const [phase, setPhase] = useState(idle);
   const [error, setError] = useState("");
   const [summary, setSummary] = useState(null);
@@ -73,6 +73,7 @@ export default function ActionBar({ scenarioId, onActionSuccess }) {
   );
 
   const onStart = async () => {
+    onActionIntent?.();
     setError("");
     setSummary(null);
     setPhase(starting);
@@ -87,6 +88,7 @@ export default function ActionBar({ scenarioId, onActionSuccess }) {
   };
 
   const onInject = async () => {
+    onActionIntent?.();
     setError("");
     setPhase(injecting);
     try {
@@ -101,6 +103,7 @@ export default function ActionBar({ scenarioId, onActionSuccess }) {
   };
 
   const onClean = async () => {
+    onActionIntent?.();
     const fallbackPhase = phase === started ? started : injected;
     setError("");
     setPhase(cleaning);
