@@ -1,145 +1,71 @@
-# FaultLab V2
+# FaultLab
 
-FaultLab 是一个面向 SRE / 后端工程师 / 中间件使用者的故障演练项目。  
-你可以一键启动场景、注入故障、观察信号、提交根因分析，并通过 `verify` 获得 AI 引导式反馈。
+FaultLab 是面向 SRE、后端与中间件使用者的**本地故障演练**项目：在 Docker 里启动可复现场景，注入故障，对照现象排查，并用 **Verify** 获得 AI 的引导式反馈。
 
----
-
-## 项目目标
-
-- 提供可复现的中间件故障场景（本地 Docker 即可运行）
-- 统一实验操作入口（`start / inject / verify / clean`）
-- 强化“现象 -> 证据 -> 根因 -> 方案”的排障思维
+本仓库的推荐用法是通过 **Web UI** 浏览场景、在浏览器内嵌终端操作，并在同一界面完成 Verify。纯命令行流程见下文入口。
 
 ---
 
-## 当前能力
+## 你需要准备什么
 
-- 统一 CLI：`./cli/faultlab.sh`
-- 场景目录标准化：`meta.yaml`、`docker-compose.yml`、`inject.sh`、`README.md`、`SOLUTION.md`、`test.sh`
-- `verify` 通过 `.env` 中的 API Key 接入 LLM 进行反馈
-
-已提供示例场景：
-
-- `scenarios/kafka/001-acks-message-loss`
-- `scenarios/kafka/002-consumer-group-rebalance-storm`
-- `scenarios/kafka/003-topic-partitions-throughput-ceiling`
+- **Docker** >= 24（需支持 `docker compose` 子命令），daemon 已运行
+- **Node.js** >= 18
+- 建议可用内存 **>= 2 GB**
+- **Verify**：在仓库根目录配置 `.env`（从 `.env.example` 复制）。Web UI 的 Verify 会优先读取 **`ANTHROPIC_API_KEY`**；未设置时也可按 `.env.example` 使用 Qwen（`DASHSCOPE_API_KEY`）或 OpenAI 兼容配置
 
 ---
 
-## 环境要求
+## 快速开始（Web UI）
 
-- Docker >= 24（需支持 `docker compose` 子命令）
-- 建议可用内存 >= 2 GB
-- Shell 环境：Git Bash / Linux / macOS（Windows PowerShell 也可运行）
-
----
-
-## 快速开始
-
-### 1) 选择场景
+在**仓库根目录**执行：
 
 ```bash
-export FAULTLAB_SCENARIO=scenarios/kafka/001-acks-message-loss
+cp .env.example .env
+# 编辑 .env，至少配置一种 Verify 所需的 Key（见 .env.example 内注释）
+
+cd web
+npm install
+npm run dev
 ```
 
-PowerShell 写法：
+浏览器打开 **http://localhost:5173**（Vite 开发服务器；API 与 WebSocket 会通过代理连到本机 Node 服务）。
 
-```powershell
-$env:FAULTLAB_SCENARIO='scenarios/kafka/001-acks-message-loss'
-```
+在界面中你可以：
 
-### 2) 启动环境
+- 按技术栈与难度筛选场景，进入详情页阅读说明
+- 使用内嵌终端执行排查命令；通过按钮完成 **启动环境 / 注入故障 / 清理**
+- 在 Verify 区域多轮对话，获取基于当前场景标准答案的反馈
 
-```bash
-./cli/faultlab.sh start
-```
-
-### 3) 注入故障
-
-```bash
-./cli/faultlab.sh inject
-```
-
-### 4) 提交你的分析结论
-
-```bash
-./cli/faultlab.sh verify
-```
-
-### 5) 清理环境
-
-```bash
-./cli/faultlab.sh clean
-```
+> 若 `npm install` 时编译原生依赖失败，在 macOS 上通常需要先安装 **Xcode Command Line Tools**（`xcode-select --install`）；在 Windows 上需要可用的 **Visual Studio Build Tools** 或对应 C++ 生成工具，以便构建 `node-pty`。
 
 ---
 
-## 使用说明
+## 纯命令行（不使用 Web）
 
-- `start`：启动当前场景容器并等待就绪
-- `inject`：将系统推进到可观察的故障态，并输出摘要
-- `verify`：进入 AI 交互验证（根因与解决方案）
-- `clean`：停止并清理场景容器、网络与卷
+若你只想在系统终端里用脚本操作场景，请看：
 
-> `FAULTLAB_SCENARIO` 是必填变量，格式：`scenarios/<tech>/<id>`
-
-`verify` 默认使用 Qwen（`VERIFY_PROVIDER=qwen`），后续可通过 `.env` 切换为其他 OpenAI 兼容模型（例如 OpenAI）。
+- **[命令行使用说明（CLI）](doc/CLI_USAGE.md)**
 
 ---
 
-## 镜像自动探测（未显式设置镜像时）
+## 贡献新场景
 
-当场景 `docker-compose.yml` 使用 `${VAR:-repo:tag}` 格式定义镜像时，CLI 会自动处理：
+场景规范、注入摘要格式与自检清单见：
 
-1. 优先使用本地已有的默认镜像
-2. 若默认 tag 不在本地，尝试同仓库本地 tag 回退（例如 `apache/kafka:*`）
-3. 本地没有则尝试拉取默认镜像
-
-若仍不可用，会提示你手动设置对应环境变量（如 `KAFKA_IMAGE`）。
+- **[doc/CONTRIBUTING.md](doc/CONTRIBUTING.md)**
 
 ---
 
-## 目录结构
+## 仓库结构（概要）
 
 ```text
-faultLabV2/
+<仓库根>/
+  web/                 # Web UI（Vite 前端 + Express / WebSocket 服务）
   cli/
-    faultlab.sh
-  scenarios/
-    kafka/
-      001-acks-message-loss/
-        meta.yaml
-        docker-compose.yml
-        inject.sh
-        README.md
-        SOLUTION.md
-        test.sh
-      002-consumer-group-rebalance-storm/
-        meta.yaml
-        docker-compose.yml
-        inject.sh
-        README.md
-        SOLUTION.md
-        test.sh
-      003-topic-partitions-throughput-ceiling/
-        meta.yaml
-        docker-compose.yml
-        inject.sh
-        README.md
-        SOLUTION.md
-        test.sh
+    faultlab.sh        # 命令行入口（Web 底层也会调用等价流程）
+  scenarios/           # 各故障场景
   doc/
+    CLI_USAGE.md       # 纯 CLI 文档
     CONTRIBUTING.md
   .env.example
 ```
-
----
-
-## 贡献场景
-
-新增或修改场景前，请先阅读：
-
-- `doc/CONTRIBUTING.md`
-
-该文档定义了场景目录规范、注入摘要格式、README/SOLUTION 模板约束与发布自检清单。

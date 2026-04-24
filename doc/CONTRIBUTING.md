@@ -258,6 +258,6 @@ verify 模块输出：
 ## 7. 文档维护约定
 
 - 若产品方向变更，**先改本文，再改场景**，避免各处 README 互相矛盾。
-- 根目录 `README.md` 只保留项目概览和指向本文的链接，细节以本文为准。
+- 根目录 `README.md` 面向 **Web UI 使用者**（安装、启动、Verify 配置）；纯命令行流程见 `doc/CLI_USAGE.md`；场景编写规范与细节以本文为准。
 - 模板文件（`README.template.md`、`SOLUTION.template.md`）变更时，需同步更新已有场景。
 - `meta.yaml` 字段结构变更时，需同步更新所有已有场景的 `meta.yaml`。
