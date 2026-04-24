@@ -37,6 +37,7 @@ app.use("/api", createSystemRouter({ faultlabRoot, systemStateStore }));
 
 const server = createServer(app);
 const wss = new WebSocketServer({ noServer: true });
+const WS_HEARTBEAT_MS = 30000;
 
 server.on("upgrade", async (request, socket, head) => {
   try {
@@ -65,6 +66,11 @@ server.on("upgrade", async (request, socket, head) => {
 });
 
 wss.on("connection", (ws) => {
+  ws.isAlive = true;
+  ws.on("pong", () => {
+    ws.isAlive = true;
+  });
+
   try {
     getOrCreatePty(ws.scenarioId, ws.scenarioDir);
   } catch (error) {
@@ -129,6 +135,25 @@ wss.on("connection", (ws) => {
   ws.on("close", () => {
     unsubscribe();
   });
+});
+
+const heartbeatTimer = setInterval(() => {
+  wss.clients.forEach((client) => {
+    if (client.isAlive === false) {
+      client.terminate();
+      return;
+    }
+    client.isAlive = false;
+    try {
+      client.ping();
+    } catch {
+      client.terminate();
+    }
+  });
+}, WS_HEARTBEAT_MS);
+
+wss.on("close", () => {
+  clearInterval(heartbeatTimer);
 });
 
 server.listen(port, () => {

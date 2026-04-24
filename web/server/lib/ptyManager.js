@@ -66,6 +66,20 @@ export function getOrCreatePty(scenarioId, cwd) {
   return ptyProcess;
 }
 
+export function resetPtySession(scenarioId, cwd) {
+  const existing = sessions.get(scenarioId);
+  if (existing) {
+    try {
+      existing.kill();
+    } catch {
+      /* ignore */
+    }
+    sessions.delete(scenarioId);
+    shellKinds.delete(scenarioId);
+  }
+  return getOrCreatePty(scenarioId, cwd);
+}
+
 export function getPtyShellKind(scenarioId) {
   return shellKinds.get(scenarioId) || null;
 }

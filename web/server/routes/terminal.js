@@ -1,6 +1,7 @@
 import { exec } from "child_process";
 import express from "express";
 import { findScenarioById } from "../lib/scenarioScanner.js";
+import { resetPtySession } from "../lib/ptyManager.js";
 
 function run(command, cwd) {
   return new Promise((resolve, reject) => {
@@ -90,6 +91,33 @@ export function createTerminalRouter({ faultlabRoot }) {
       }
     } catch (error) {
       res.status(500).json({ error: "Failed to list containers", detail: error.message });
+    }
+  });
+
+  router.post("/scenarios/:id/attach", async (req, res) => {
+    try {
+      const scenario = await findScenarioById(faultlabRoot, req.params.id);
+      if (!scenario) {
+        res.status(404).json({ ok: false, error: "Scenario not found" });
+        return;
+      }
+
+      const containerName = String(req.body?.containerName || "").trim();
+      if (!containerName) {
+        res.status(400).json({ ok: false, error: "containerName is required" });
+        return;
+      }
+      if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(containerName)) {
+        res.status(400).json({ ok: false, error: "Invalid container name" });
+        return;
+      }
+
+      const ptyProcess = resetPtySession(scenario.id, scenario.scenarioDir);
+      ptyProcess.write(`echo "[FaultLab] Attach to container: ${containerName}"\n`);
+      ptyProcess.write(`docker exec -it ${containerName} /bin/bash || docker exec -it ${containerName} /bin/sh\n`);
+      res.json({ ok: true });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message || "attach failed" });
     }
   });
 

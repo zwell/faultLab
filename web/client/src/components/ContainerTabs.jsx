@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-export default function ContainerTabs({ scenarioId, onAttach }) {
+export default function ContainerTabs({ scenarioId, onAttach, refreshKey = 0 }) {
   const [containers, setContainers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [fetchError, setFetchError] = useState("");
@@ -40,7 +40,7 @@ export default function ContainerTabs({ scenarioId, onAttach }) {
       }
     };
     load();
-  }, [scenarioId]);
+  }, [scenarioId, refreshKey]);
 
   return (
     <div className="flex flex-wrap items-center gap-2">

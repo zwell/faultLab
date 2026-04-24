@@ -7,7 +7,7 @@ const injecting = "injecting";
 const injected = "injected";
 const cleaning = "cleaning";
 
-export default function ActionBar({ scenarioId }) {
+export default function ActionBar({ scenarioId, onActionSuccess }) {
   const [phase, setPhase] = useState(idle);
   const [error, setError] = useState("");
   const [summary, setSummary] = useState(null);
@@ -79,6 +79,7 @@ export default function ActionBar({ scenarioId }) {
     try {
       await postAction("/start");
       setPhase(started);
+      onActionSuccess?.("start");
     } catch (err) {
       setError(err.message || "启动失败");
       setPhase(idle);
@@ -92,6 +93,7 @@ export default function ActionBar({ scenarioId }) {
       const data = await postAction("/inject");
       setSummary(data.summary || null);
       setPhase(injected);
+      onActionSuccess?.("inject");
     } catch (err) {
       setError(err.message || "注入失败");
       setPhase(started);
@@ -99,15 +101,17 @@ export default function ActionBar({ scenarioId }) {
   };
 
   const onClean = async () => {
+    const fallbackPhase = phase === started ? started : injected;
     setError("");
     setPhase(cleaning);
     try {
       await postAction("/clean");
       setSummary(null);
       setPhase(idle);
+      onActionSuccess?.("clean");
     } catch (err) {
       setError(err.message || "清理失败");
-      setPhase(injected);
+      setPhase(fallbackPhase);
     }
   };
 
@@ -115,7 +119,7 @@ export default function ActionBar({ scenarioId }) {
   const canStart = phase === idle && !busy;
   const canRestart = (phase === started || phase === injected) && !busy;
   const canInject = phase === started && !busy;
-  const canClean = phase === injected && !busy;
+  const canClean = (phase === injected || phase === started) && !busy;
 
   return (
     <div className="space-y-2">

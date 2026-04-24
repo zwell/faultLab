@@ -5,14 +5,14 @@ import "xterm/css/xterm.css";
 
 export default function Terminal({ scenarioId, commandBridgeRef }) {
   const hostRef = useRef(null);
-  const terminalRef = useRef(null);
   const socketRef = useRef(null);
-  const fitAddonRef = useRef(null);
 
   useEffect(() => {
     if (!hostRef.current || !scenarioId) return undefined;
 
     let disposed = false;
+    let reconnectTimer = null;
+    let reconnectAttempts = 0;
 
     const fitAddon = new FitAddon();
     const term = new XTerm({
@@ -24,17 +24,15 @@ export default function Terminal({ scenarioId, commandBridgeRef }) {
       }
     });
 
-    fitAddonRef.current = fitAddon;
-    terminalRef.current = term;
     term.loadAddon(fitAddon);
     term.open(hostRef.current);
     fitAddon.fit();
 
     const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-    const socket = new WebSocket(`${protocol}://${window.location.host}/ws/terminal/${scenarioId}`);
-    socketRef.current = socket;
 
     const sendResize = () => {
+      const socket = socketRef.current;
+      if (!socket) return;
       if (socket.readyState !== WebSocket.OPEN || !term.cols || !term.rows) return;
       socket.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }));
     };
@@ -46,31 +44,51 @@ export default function Terminal({ scenarioId, commandBridgeRef }) {
       return baseY - cursorY <= Math.max(2, Math.floor(viewportRows * 0.1));
     };
 
-    socket.addEventListener("open", () => {
-      if (disposed) {
-        socket.close();
-        return;
-      }
-      term.writeln("\x1b[32mConnected to terminal session.\x1b[0m");
-      term.scrollToBottom();
-      sendResize();
-    });
-
-    socket.addEventListener("message", (event) => {
-      const shouldFollow = isNearBottom();
-      term.write(String(event.data || ""));
-      if (shouldFollow) {
-        term.scrollToBottom();
-      }
-    });
-
-    socket.addEventListener("close", () => {
+    const connectSocket = () => {
       if (disposed) return;
-      term.writeln("\r\n\x1b[31mTerminal disconnected.\x1b[0m");
-      term.scrollToBottom();
-    });
+      const socket = new WebSocket(`${protocol}://${window.location.host}/ws/terminal/${scenarioId}`);
+      socketRef.current = socket;
+
+      socket.addEventListener("open", () => {
+        if (disposed) {
+          socket.close();
+          return;
+        }
+        const recovered = reconnectAttempts > 0;
+        reconnectAttempts = 0;
+        term.writeln(
+          recovered
+            ? "\r\n\x1b[32mTerminal reconnected.\x1b[0m"
+            : "\x1b[32mConnected to terminal session.\x1b[0m"
+        );
+        term.writeln(`\x1b[90m[FaultLab] Scenario: ${scenarioId}\x1b[0m`);
+        term.scrollToBottom();
+        sendResize();
+      });
+
+      socket.addEventListener("message", (event) => {
+        const shouldFollow = isNearBottom();
+        term.write(String(event.data || ""));
+        if (shouldFollow) {
+          term.scrollToBottom();
+        }
+      });
+
+      socket.addEventListener("close", () => {
+        if (disposed) return;
+        const delay = Math.min(10000, 1000 * 2 ** Math.min(reconnectAttempts, 3));
+        reconnectAttempts += 1;
+        term.writeln(`\r\n\x1b[33mTerminal disconnected, reconnecting in ${Math.round(delay / 1000)}s...\x1b[0m`);
+        term.scrollToBottom();
+        reconnectTimer = window.setTimeout(connectSocket, delay);
+      });
+    };
+
+    connectSocket();
 
     const disposable = term.onData((data) => {
+      const socket = socketRef.current;
+      if (!socket) return;
       if (socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({ type: "input", data }));
       }
@@ -84,6 +102,8 @@ export default function Terminal({ scenarioId, commandBridgeRef }) {
 
     if (commandBridgeRef) {
       commandBridgeRef.current = (command) => {
+        const socket = socketRef.current;
+        if (!socket) return;
         if (socket.readyState !== WebSocket.OPEN) return;
         socket.send(JSON.stringify({ type: "input", data: `${command}\n` }));
       };
@@ -91,10 +111,16 @@ export default function Terminal({ scenarioId, commandBridgeRef }) {
 
     return () => {
       disposed = true;
+      if (reconnectTimer) {
+        window.clearTimeout(reconnectTimer);
+      }
       if (commandBridgeRef) commandBridgeRef.current = null;
       window.removeEventListener("resize", onResize);
       disposable.dispose();
-      socket.close();
+      if (socketRef.current) {
+        socketRef.current.close();
+        socketRef.current = null;
+      }
       term.dispose();
     };
   }, [scenarioId, commandBridgeRef]);

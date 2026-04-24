@@ -2,7 +2,7 @@ import express from "express";
 import fs from "fs";
 import { exec } from "child_process";
 import { findScenarioById } from "../lib/scenarioScanner.js";
-import { getOrCreatePty, getPtyShellKind, registerOutputListener } from "../lib/ptyManager.js";
+import { getPtyShellKind, registerOutputListener, resetPtySession } from "../lib/ptyManager.js";
 import { toPosixPath } from "../lib/shellRunner.js";
 
 const SUMMARY_START = "=== FaultLab Inject Summary ===";
@@ -14,6 +14,7 @@ const START_UNHEALTHY = "Environment started but not fully healthy";
 
 const injectLocks = new Map();
 const startLocks = new Map();
+const cleanLocks = new Map();
 const runtimeStates = new Map();
 const INJECT_STATE_TTL_MS = 6 * 60 * 60 * 1000;
 
@@ -86,6 +87,11 @@ function faultlabCommandLine(faultlabRoot, scenarioRelativeDir, action, shellKin
   }
 
   return `${inner}\n`;
+}
+
+function writeActionWithContextResetHint(ptyProcess, commandLine, actionLabel) {
+  ptyProcess.write(`echo "[FaultLab] Reset terminal session before ${actionLabel}"\n`);
+  ptyProcess.write(commandLine);
 }
 
 function tryParseInjectSummary(buffer) {
@@ -182,6 +188,35 @@ function waitForInjectSummary(scenarioId, timeoutMs) {
   });
 }
 
+function waitForEarlyError(scenarioId, timeoutMs) {
+  return new Promise((resolve) => {
+    let buffer = "";
+    let settled = false;
+    const deadline = Date.now() + timeoutMs;
+
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      clearInterval(timer);
+      unsubscribe();
+      resolve(result);
+    };
+
+    const unsubscribe = registerOutputListener(scenarioId, (chunk) => {
+      buffer += chunk;
+      if (/^\s*ERROR:/m.test(buffer)) {
+        finish({ ok: false, detail: extractFirstErrorLine(buffer) || "命令执行失败（见终端输出）。" });
+      }
+    });
+
+    const timer = setInterval(() => {
+      if (Date.now() > deadline) {
+        finish({ ok: true });
+      }
+    }, 300);
+  });
+}
+
 export function createActionsRouter({ faultlabRoot }) {
   const router = express.Router();
 
@@ -252,11 +287,15 @@ export function createActionsRouter({ faultlabRoot }) {
         return;
       }
 
-      const ptyProcess = getOrCreatePty(scenario.id, scenario.scenarioDir);
+      const ptyProcess = resetPtySession(scenario.id, scenario.scenarioDir);
       const shellKind = getPtyShellKind(scenario.id);
       runtimeStates.set(scenario.id, { injected: false, summary: null, injectedAtMs: null });
       const resultPromise = waitForStartResult(scenario.id, 360000);
-      ptyProcess.write(faultlabCommandLine(faultlabRoot, scenario.relativeDir, "start", shellKind));
+      writeActionWithContextResetHint(
+        ptyProcess,
+        faultlabCommandLine(faultlabRoot, scenario.relativeDir, "start", shellKind),
+        "start"
+      );
       const result = await resultPromise;
 
       if (!result.ok) {
@@ -273,20 +312,41 @@ export function createActionsRouter({ faultlabRoot }) {
   });
 
   router.post("/scenarios/:id/clean", async (req, res) => {
+    const scenarioId = req.params.id;
+    if (cleanLocks.get(scenarioId)) {
+      res.status(409).json({ ok: false, error: "该场景正在清理中，请稍候。" });
+      return;
+    }
+
+    cleanLocks.set(scenarioId, true);
     try {
-      const scenario = await findScenarioById(faultlabRoot, req.params.id);
+      const scenario = await findScenarioById(faultlabRoot, scenarioId);
       if (!scenario) {
         res.status(404).json({ ok: false, error: "Scenario not found" });
         return;
       }
 
-      const ptyProcess = getOrCreatePty(scenario.id, scenario.scenarioDir);
+      const ptyProcess = resetPtySession(scenario.id, scenario.scenarioDir);
       const shellKind = getPtyShellKind(scenario.id);
+      const resultPromise = waitForEarlyError(scenario.id, 6000);
+      writeActionWithContextResetHint(
+        ptyProcess,
+        faultlabCommandLine(faultlabRoot, scenario.relativeDir, "clean", shellKind),
+        "clean"
+      );
+      const result = await resultPromise;
+
+      if (!result.ok) {
+        res.status(500).json({ ok: false, error: result.detail || "clean failed" });
+        return;
+      }
+
       runtimeStates.set(scenario.id, { injected: false, summary: null, injectedAtMs: null });
-      ptyProcess.write(faultlabCommandLine(faultlabRoot, scenario.relativeDir, "clean", shellKind));
       res.json({ ok: true });
     } catch (error) {
       res.status(500).json({ ok: false, error: error.message || "clean failed" });
+    } finally {
+      cleanLocks.delete(scenarioId);
     }
   });
 
@@ -305,10 +365,14 @@ export function createActionsRouter({ faultlabRoot }) {
         return;
       }
 
-      const ptyProcess = getOrCreatePty(scenario.id, scenario.scenarioDir);
+      const ptyProcess = resetPtySession(scenario.id, scenario.scenarioDir);
       const shellKind = getPtyShellKind(scenario.id);
       const resultPromise = waitForInjectSummary(scenario.id, 240000);
-      ptyProcess.write(faultlabCommandLine(faultlabRoot, scenario.relativeDir, "inject", shellKind));
+      writeActionWithContextResetHint(
+        ptyProcess,
+        faultlabCommandLine(faultlabRoot, scenario.relativeDir, "inject", shellKind),
+        "inject"
+      );
       const result = await resultPromise;
 
       if (!result.ok) {

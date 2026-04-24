@@ -91,6 +91,7 @@ export default function Scenario() {
   const [metaError, setMetaError] = useState("");
   const [leftRatio, setLeftRatio] = useState(40);
   const [dragging, setDragging] = useState(false);
+  const [containerRefreshKey, setContainerRefreshKey] = useState(0);
   const shellCommandRef = useRef(null);
 
   useEffect(() => {
@@ -157,9 +158,30 @@ export default function Scenario() {
     };
   }, [dragging]);
 
-  const attachContainer = (containerName) => {
-    if (!shellCommandRef.current) return;
-    shellCommandRef.current(`docker exec -it ${containerName} /bin/bash || docker exec -it ${containerName} /bin/sh`);
+  const attachContainer = async (containerName) => {
+    try {
+      const response = await fetch(`/api/scenarios/${id}/attach`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ containerName })
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        if (response.status === 404 && shellCommandRef.current) {
+          // Backward compatibility when server has not reloaded new /attach route yet.
+          shellCommandRef.current(`docker exec -it ${containerName} /bin/bash || docker exec -it ${containerName} /bin/sh`);
+          return;
+        }
+        throw new Error(data.error || `HTTP ${response.status}`);
+      }
+    } catch (error) {
+      // Surface in devtools; terminal still remains usable.
+      console.error("[attach] failed:", error?.message || error);
+    }
+  };
+
+  const handleActionSuccess = () => {
+    setContainerRefreshKey((prev) => prev + 1);
   };
 
   return (
@@ -219,9 +241,9 @@ export default function Scenario() {
         <div style={{ width: `${rightRatio}%` }} className="flex h-full min-w-0 flex-col gap-3 p-3">
           <div className="rounded-lg border border-slate-800 bg-slate-900 p-3">
             <div className="mb-2">
-              <ActionBar scenarioId={id} />
+              <ActionBar scenarioId={id} onActionSuccess={handleActionSuccess} />
             </div>
-            <ContainerTabs scenarioId={id} onAttach={attachContainer} />
+            <ContainerTabs scenarioId={id} onAttach={attachContainer} refreshKey={containerRefreshKey} />
           </div>
 
           <div className="min-h-0 flex-[6]">
