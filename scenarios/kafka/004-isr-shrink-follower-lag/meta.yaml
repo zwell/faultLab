@@ -1,0 +1,13 @@
+id: kafka-004
+title: Kafka ISR 副本持续缩减（副本落后）
+tech: kafka
+difficulty: 3
+duration_min: 30
+duration_max: 45
+resource_level: heavy
+tags:
+  - isr
+  - replication
+  - follower-lag
+  - min-insync-replicas
+parameter_intervention: true

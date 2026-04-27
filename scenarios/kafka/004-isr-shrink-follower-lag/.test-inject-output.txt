@@ -1,0 +1,11 @@
+=== FaultLab Inject Summary ===
+scenario                     : kafka-004
+isr_size_before              : 3
+isr_size_after               : 1
+under_replicated_partitions  : 1
+min_insync_replicas          : 2
+producer_before              : ok
+producer_error               : NotEnoughReplicasException
+affected_component           : topic/faultlab-isr-shrink
+inject_param                 : pause followers=[kafka004-broker2 kafka004-broker3]
+================================
