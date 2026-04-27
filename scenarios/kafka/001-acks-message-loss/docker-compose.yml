@@ -17,8 +17,6 @@ services:
       KAFKA_LOG_FLUSH_INTERVAL_MS: 600000
       KAFKA_LOG_FLUSH_INTERVAL_MESSAGES: "1000000"
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
-    ports:
-      - "9092:9092"
     volumes:
       - kafka001-data:/var/lib/kafka/data
     healthcheck:
