@@ -122,6 +122,11 @@ parameter_intervention: false          # 是否人为修改了关键中间件参
 - 镜像版本必须固定（如 `apache/kafka:x.x.x`），可通过环境变量覆盖（如 `${KAFKA_IMAGE:-apache/kafka:x.x.x}`）。
 - 健康检查命令须与镜像一致（`apache/kafka` 无 `bash`，用 `/bin/sh`）。
 - 容器名称必须带场景 ID 前缀，格式见第 2 节命名约定，避免多场景并行时冲突。
+- **端口暴露策略（强约束）**：
+  - 默认不暴露宿主机端口（优先使用容器内命令、容器网络通信）。
+  - 若确需暴露，禁止写死常见端口（如 `9092:9092`）；必须使用可覆盖变量（如 `"${KAFKA_HOST_PORT:-19092}:9092"`）。
+  - `README.md` 必须说明该端口用途与覆盖方式（环境变量名、默认值）。
+  - 新场景提交前需确认：与同技术栈已存在场景并行启动时不发生端口冲突。
 - **Compose 变量转义**：`command` / `entrypoint` 中的容器内 shell 变量必须写成 `$$VAR`，防止被 Compose 预插值。示例：
   ```yaml
   command: /bin/sh -c "for i in $$(seq 1 100); do echo $$i; done"
@@ -220,6 +225,7 @@ scenario       : <scenario-id>
 - [ ] `docker-compose.yml`：`up -d` 可正常拉起，健康检查通过
 - [ ] `docker-compose.yml`：容器内 shell 变量已写成 `$$VAR`
 - [ ] `docker-compose.yml`：容器名带场景 ID 前缀，格式符合 `{tech}{NNN}-{role}` 约定
+- [ ] `docker-compose.yml`：端口策略符合规范（默认不暴露；必须暴露时使用 `${VAR:-PORT}`，且并行启动不冲突）
 - [ ] `inject.sh`：执行后有标准格式摘要输出，无报错
 - [ ] `inject.sh`：所有 `docker exec` 前加了 `MSYS_NO_PATHCONV=1`
 - [ ] `inject.sh`：摘要 key 优先复用通用 key 名
